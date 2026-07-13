@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { getUser, getDynastyLeagues, type SleeperLeague } from "@/lib/sleeper";
+import { supabase } from "@/lib/supabase";
 
 // The current NFL season we look leagues up against.
 const CURRENT_SEASON = "2026";
@@ -16,11 +18,13 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [leagues, setLeagues] = useState<SleeperLeague[] | null>(null);
   const [displayName, setDisplayName] = useState("");
+  const [success, setSuccess] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLeagues(null);
+    setSuccess(false);
 
     // Basic form checks first
     if (!email || !password || !confirm || !username) {
@@ -51,12 +55,31 @@ export default function SignupPage() {
     // Step 2: pull their dynasty leagues for this season
     const dynasty = await getDynastyLeagues(user.user_id, CURRENT_SEASON);
 
-    setDisplayName(user.display_name);
-    setLeagues(dynasty);
+    // Step 3: create the real account in Supabase. We attach their verified
+    // Sleeper identity to the account so we never have to re-look it up.
+    const { error: signUpError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          sleeper_username: user.username,
+          sleeper_user_id: user.user_id,
+          sleeper_display_name: user.display_name,
+        },
+      },
+    });
+
     setLoading(false);
 
-    // NOTE: This is where we'll create the real account in Supabase next.
-    // For now we've proven the Sleeper pipeline works end to end.
+    if (signUpError) {
+      // Most common: email already registered
+      setError(signUpError.message);
+      return;
+    }
+
+    setDisplayName(user.display_name);
+    setLeagues(dynasty);
+    setSuccess(true);
   }
 
   return (
@@ -118,11 +141,27 @@ export default function SignupPage() {
               {loading ? "Checking Sleeper…" : "Create account"}
             </button>
           </form>
+
+          <p className="mt-4 text-center text-sm text-zinc-400">
+            Already have an account?{" "}
+            <Link href="/login" className="font-medium text-emerald-400 hover:text-emerald-300">
+              Log in
+            </Link>
+          </p>
         </div>
 
-        {/* Result: dynasty leagues found */}
+        {/* Result: account created + dynasty leagues found */}
         {leagues && (
           <div className="mt-6 rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
+            {success && (
+              <div className="mb-4 rounded-lg bg-emerald-950/60 border border-emerald-900 px-3 py-2 text-sm text-emerald-300">
+                🎉 Account created! You can{" "}
+                <Link href="/login" className="font-semibold underline">
+                  log in
+                </Link>{" "}
+                now.
+              </div>
+            )}
             <p className="text-sm text-zinc-400">
               Verified as{" "}
               <span className="font-semibold text-white">{displayName}</span>
