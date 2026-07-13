@@ -217,7 +217,6 @@ export default function TeamsTab() {
                   )}
                 </div>
               </div>
-              <WindowTag age={t.avgStarterAge} producing={t.producing} />
             </div>
 
             {/* Records + streak */}
@@ -326,43 +325,3 @@ function ordinal(n: number) {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
-// Two-axis dynasty read: age (young/old) × production (last-season points).
-function WindowTag({
-  age,
-  producing,
-}: {
-  age: number | null;
-  producing: boolean | null;
-}) {
-  if (age == null) return null;
-  const young = age < 26;
-  const old = age > 27.5;
-
-  let label: string;
-  let cls: string;
-  if (young && producing) {
-    label = "Ascending";
-    cls = "bg-emerald-950 text-emerald-400 border-emerald-900";
-  } else if (old && producing) {
-    label = "Win-Now";
-    cls = "bg-amber-950 text-amber-400 border-amber-900";
-  } else if (young && producing === false) {
-    label = "Rebuilding";
-    cls = "bg-sky-950 text-sky-400 border-sky-900";
-  } else if (old && producing === false) {
-    label = "Aging";
-    cls = "bg-red-950 text-red-400 border-red-900";
-  } else {
-    label = "Balanced";
-    cls = "bg-zinc-800 text-zinc-300 border-zinc-700";
-  }
-
-  return (
-    <span
-      className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase ${cls}`}
-      title={`Avg starter age ${age.toFixed(1)}`}
-    >
-      {label}
-    </span>
-  );
-}
