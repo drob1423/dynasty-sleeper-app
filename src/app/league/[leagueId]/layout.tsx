@@ -10,7 +10,8 @@ import { getLeague, leagueLogoUrl } from "@/lib/sleeper";
 // The league workspace tabs. `segment: ""` is the Home tab (the base route).
 const TABS: { label: string; segment: string }[] = [
   { label: "Home", segment: "" },
-  { label: "Teams", segment: "teams" },
+  { label: "My Team", segment: "my-team" },
+  { label: "Rivals", segment: "teams" },
   { label: "Standings", segment: "standings" },
   { label: "Matchups", segment: "matchups" },
   { label: "Trade Central", segment: "trades" },

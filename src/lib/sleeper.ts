@@ -342,6 +342,151 @@ export function trailingStreak(results: ("W" | "L" | "T")[]): Streak {
 // Per-roster transaction tallies for a season.
 export type TxStats = { trades: number; moves: number };
 
+// ---------------------------------------------------------------------------
+// Head-to-head — one user's all-time record vs every other manager, split into
+// regular season and playoffs. Opponents are keyed by owner (the person), so a
+// manager's record follows them. Playoff games use the same "counts for a
+// medal" rule as the playoff record (regular rounds + final + 3rd-place game).
+// ---------------------------------------------------------------------------
+export type H2HRecord = {
+  regW: number;
+  regL: number;
+  regT: number;
+  poW: number;
+  poL: number;
+  poT: number;
+  myPtsFor: number; // total points I scored in our regular-season matchups
+  oppPtsFor: number; // total points they scored in those matchups
+};
+
+// Compute one season's H2H contribution for a user, keyed by opponent owner id.
+async function seasonH2H(
+  season: SleeperLeagueDetail,
+  userId: string
+): Promise<Map<string, H2HRecord>> {
+  const out = new Map<string, H2HRecord>();
+  const ensure = (oid: string) => {
+    let e = out.get(oid);
+    if (!e) {
+      e = {
+        regW: 0,
+        regL: 0,
+        regT: 0,
+        poW: 0,
+        poL: 0,
+        poT: 0,
+        myPtsFor: 0,
+        oppPtsFor: 0,
+      };
+      out.set(oid, e);
+    }
+    return e;
+  };
+
+  const rosters = await getRosters(season.league_id);
+  const ownerByRoster = new Map<number, string | null>(
+    rosters.map((r) => [r.roster_id, r.owner_id])
+  );
+  const userRoster = rosters.find((r) => r.owner_id === userId)?.roster_id;
+  if (userRoster == null) return out;
+
+  // Regular season
+  const throughWeek = (season.playoff_week_start || 15) - 1;
+  const weeks = Array.from({ length: throughWeek }, (_, i) => i + 1);
+  const perWeek = await Promise.all(
+    weeks.map((w) =>
+      fetch(`${BASE}/league/${season.league_id}/matchups/${w}`)
+        .then((r) => (r.ok ? r.json() : []))
+        .catch(() => [])
+    )
+  );
+  for (const ms of perWeek) {
+    if (!Array.isArray(ms)) continue;
+    const byMatch = new Map<number, { roster_id: number; points: number }[]>();
+    for (const m of ms) {
+      if (m.matchup_id == null || m.points == null) continue;
+      const arr = byMatch.get(m.matchup_id) ?? [];
+      arr.push({ roster_id: m.roster_id, points: m.points });
+      byMatch.set(m.matchup_id, arr);
+    }
+    for (const pair of byMatch.values()) {
+      if (pair.length !== 2) continue;
+      const mine = pair.find((p) => p.roster_id === userRoster);
+      const opp = pair.find((p) => p.roster_id !== userRoster);
+      if (!mine || !opp) continue;
+      const oppOwner = ownerByRoster.get(opp.roster_id);
+      if (!oppOwner) continue;
+      const e = ensure(oppOwner);
+      e.myPtsFor += mine.points;
+      e.oppPtsFor += opp.points;
+      if (mine.points > opp.points) e.regW++;
+      else if (mine.points < opp.points) e.regL++;
+      else e.regT++;
+    }
+  }
+
+  // Playoffs — championship bracket, games that matter only
+  const wb = await fetch(`${BASE}/league/${season.league_id}/winners_bracket`)
+    .then((r) => (r.ok ? r.json() : []))
+    .catch(() => []);
+  if (Array.isArray(wb)) {
+    for (const m of wb) {
+      const t1 = typeof m.t1 === "number" ? m.t1 : null;
+      const t2 = typeof m.t2 === "number" ? m.t2 : null;
+      if (t1 == null || t2 == null) continue;
+      if (t1 !== userRoster && t2 !== userRoster) continue;
+      const decidesMedal = m.p === 1 || m.p === 3;
+      if (typeof m.p === "number" && !decidesMedal) continue; // skip 5th/7th
+      const oppRoster = t1 === userRoster ? t2 : t1;
+      const oppOwner = ownerByRoster.get(oppRoster);
+      if (!oppOwner) continue;
+      const w = typeof m.w === "number" ? m.w : null;
+      const e = ensure(oppOwner);
+      if (w === userRoster) e.poW++;
+      else if (w === oppRoster) e.poL++;
+    }
+  }
+
+  return out;
+}
+
+// A user's all-time H2H vs every opponent owner, across all played seasons.
+export async function getUserH2H(
+  chain: SleeperLeagueDetail[],
+  userId: string
+): Promise<Map<string, H2HRecord>> {
+  const played = chain.filter(seasonHasData);
+  const perSeason = await Promise.all(played.map((s) => seasonH2H(s, userId)));
+
+  const merged = new Map<string, H2HRecord>();
+  for (const m of perSeason) {
+    for (const [oid, rec] of m) {
+      const e =
+        merged.get(oid) ??
+        {
+          regW: 0,
+          regL: 0,
+          regT: 0,
+          poW: 0,
+          poL: 0,
+          poT: 0,
+          myPtsFor: 0,
+          oppPtsFor: 0,
+        };
+      e.regW += rec.regW;
+      e.regL += rec.regL;
+      e.regT += rec.regT;
+      e.poW += rec.poW;
+      e.poL += rec.poL;
+      e.poT += rec.poT;
+      e.myPtsFor += rec.myPtsFor;
+      e.oppPtsFor += rec.oppPtsFor;
+      merged.set(oid, e);
+    }
+  }
+  return merged;
+}
+
 // Count completed trades and roster moves (waiver + free-agent adds) per roster
 // across a season by scanning the transaction log. Sleeper's roster
 // `total_moves` field is unreliable, so we count from the source.
