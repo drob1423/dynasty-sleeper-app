@@ -86,10 +86,93 @@ export async function getDynastyLeagues(
   return all.filter((l) => l.type === LEAGUE_TYPE.DYNASTY);
 }
 
+// ---------------------------------------------------------------------------
+// Players — the app's /api/players route serves a compact map (see that file).
+// We cache it in memory so we only download it once per page-load session.
+// ---------------------------------------------------------------------------
+export type PlayerInfo = {
+  name: string;
+  position: string | null;
+  team: string | null;
+  age: number | null;
+  yearsExp: number | null;
+};
+
+type CompactPlayer = {
+  n: string;
+  p: string | null;
+  t: string | null;
+  a: number | null;
+  e: number | null;
+};
+
+let playerCache: Record<string, PlayerInfo> | null = null;
+
+export async function getPlayerMap(): Promise<Record<string, PlayerInfo>> {
+  if (playerCache) return playerCache;
+
+  const res = await fetch("/api/players");
+  if (!res.ok) return {};
+
+  const raw: Record<string, CompactPlayer> = await res.json();
+  const map: Record<string, PlayerInfo> = {};
+  for (const id in raw) {
+    const c = raw[id];
+    map[id] = {
+      name: c.n,
+      position: c.p,
+      team: c.t,
+      age: c.a,
+      yearsExp: c.e,
+    };
+  }
+  playerCache = map;
+  return map;
+}
+
+// A roster with its player lists + this season's record/moves/FAAB.
+export type FullRoster = {
+  roster_id: number;
+  owner_id: string | null;
+  players: string[]; // all player_ids on the roster
+  starters: string[]; // current starting lineup player_ids
+  taxi: string[]; // taxi-squad player_ids
+  reserve: string[]; // IR player_ids
+  wins: number;
+  losses: number;
+  ties: number;
+  totalMoves: number;
+  waiverBudgetUsed: number;
+};
+
+export async function getFullRosters(leagueId: string): Promise<FullRoster[]> {
+  const res = await fetch(`${BASE}/league/${leagueId}/rosters`);
+  if (!res.ok) return [];
+  const data = await res.json();
+  if (!Array.isArray(data)) return [];
+  return data.map((r) => {
+    const s = r.settings || {};
+    return {
+      roster_id: r.roster_id,
+      owner_id: r.owner_id ?? null,
+      players: r.players ?? [],
+      starters: (r.starters ?? []).filter((p: string) => p && p !== "0"),
+      taxi: r.taxi ?? [],
+      reserve: r.reserve ?? [],
+      wins: s.wins ?? 0,
+      losses: s.losses ?? 0,
+      ties: s.ties ?? 0,
+      totalMoves: s.total_moves ?? 0,
+      waiverBudgetUsed: s.waiver_budget_used ?? 0,
+    };
+  });
+}
+
 // Full detail for a single league (includes status + season + settings).
 export type SleeperLeagueDetail = SleeperLeague & {
   status: string; // "pre_draft" | "drafting" | "in_season" | "complete"
   playoff_week_start: number;
+  waiverBudget: number; // total FAAB budget for the season
 };
 
 export async function getLeague(
@@ -109,7 +192,18 @@ export async function getLeague(
     avatar: l.avatar ?? null,
     status: l.status,
     playoff_week_start: l.settings?.playoff_week_start ?? 15,
+    waiverBudget: l.settings?.waiver_budget ?? 100,
   };
+}
+
+// Build a Sleeper avatar URL from an avatar id (thumb size).
+export function sleeperAvatarUrl(id: string | null): string | null {
+  return id ? `https://sleepercdn.com/avatars/thumbs/${id}` : null;
+}
+
+// Build a Sleeper league-logo URL from a league's avatar id.
+export function leagueLogoUrl(avatar: string | null): string | null {
+  return sleeperAvatarUrl(avatar);
 }
 
 // A manager in a league (owner of a roster).
@@ -118,6 +212,7 @@ export type SleeperManager = {
   display_name: string;
   team_name: string | null;
   avatar: string | null;
+  teamAvatar: string | null; // ready-to-use logo URL (custom logo or user avatar)
   is_commissioner: boolean;
 };
 
@@ -128,14 +223,24 @@ export async function getLeagueUsers(
   if (!res.ok) return [];
   const data = await res.json();
   if (!Array.isArray(data)) return [];
-  return data.map((u) => ({
-    user_id: u.user_id,
-    display_name: u.display_name,
-    team_name: (u.metadata || {}).team_name ?? null,
-    avatar: u.avatar ?? null,
-    // Sleeper marks commissioners with is_owner on the league user record
-    is_commissioner: u.is_owner === true,
-  }));
+  return data.map((u) => {
+    const meta = u.metadata || {};
+    // Managers can upload a custom team logo (metadata.avatar = full URL).
+    // Otherwise fall back to their Sleeper user avatar.
+    const teamAvatar =
+      typeof meta.avatar === "string" && meta.avatar.startsWith("http")
+        ? meta.avatar
+        : sleeperAvatarUrl(u.avatar ?? null);
+    return {
+      user_id: u.user_id,
+      display_name: u.display_name,
+      team_name: meta.team_name ?? null,
+      avatar: u.avatar ?? null,
+      teamAvatar,
+      // Sleeper marks commissioners with is_owner on the league user record
+      is_commissioner: u.is_owner === true,
+    };
+  });
 }
 
 // A roster with its season record (straight from Sleeper — nothing computed).
@@ -147,6 +252,8 @@ export type SleeperRoster = {
   ties: number;
   fpts: number; // points for (whole + decimal combined)
   fpts_against: number; // points against
+  totalMoves: number; // adds/waivers made this season
+  waiverBudgetUsed: number; // FAAB spent this season
 };
 
 export async function getRosters(leagueId: string): Promise<SleeperRoster[]> {
@@ -164,8 +271,115 @@ export async function getRosters(leagueId: string): Promise<SleeperRoster[]> {
       ties: s.ties ?? 0,
       fpts: (s.fpts ?? 0) + (s.fpts_decimal ?? 0) / 100,
       fpts_against: (s.fpts_against ?? 0) + (s.fpts_against_decimal ?? 0) / 100,
+      totalMoves: s.total_moves ?? 0,
+      waiverBudgetUsed: s.waiver_budget_used ?? 0,
     };
   });
+}
+
+// A team's current win/loss streak, e.g. { type: "W", count: 3 }.
+export type Streak = { type: "W" | "L" | "T"; count: number } | null;
+
+// Compute each roster's chronological regular-season results (W/L/T) by
+// comparing scores within each week's matchup. Used for streaks.
+export async function getWeeklyResults(
+  leagueId: string,
+  throughWeek: number
+): Promise<Map<number, ("W" | "L" | "T")[]>> {
+  const weeks = Array.from({ length: Math.max(0, throughWeek) }, (_, i) => i + 1);
+  const perWeek = await Promise.all(
+    weeks.map((w) =>
+      fetch(`${BASE}/league/${leagueId}/matchups/${w}`)
+        .then((r) => (r.ok ? r.json() : []))
+        .catch(() => [])
+    )
+  );
+
+  const results = new Map<number, ("W" | "L" | "T")[]>();
+  const push = (rid: number, res: "W" | "L" | "T") => {
+    const arr = results.get(rid) ?? [];
+    arr.push(res);
+    results.set(rid, arr);
+  };
+
+  for (const ms of perWeek) {
+    if (!Array.isArray(ms)) continue;
+    // Group the week's entries by matchup_id (each matchup has two teams).
+    const byMatch = new Map<number, { roster_id: number; points: number }[]>();
+    for (const m of ms) {
+      if (m.matchup_id == null || m.points == null) continue;
+      const arr = byMatch.get(m.matchup_id) ?? [];
+      arr.push({ roster_id: m.roster_id, points: m.points });
+      byMatch.set(m.matchup_id, arr);
+    }
+    for (const pair of byMatch.values()) {
+      if (pair.length !== 2) continue;
+      const [a, b] = pair;
+      if (a.points > b.points) {
+        push(a.roster_id, "W");
+        push(b.roster_id, "L");
+      } else if (a.points < b.points) {
+        push(a.roster_id, "L");
+        push(b.roster_id, "W");
+      } else {
+        push(a.roster_id, "T");
+        push(b.roster_id, "T");
+      }
+    }
+  }
+  return results;
+}
+
+// Turn a chronological results array into the current trailing streak.
+export function trailingStreak(results: ("W" | "L" | "T")[]): Streak {
+  if (results.length === 0) return null;
+  const type = results[results.length - 1];
+  let count = 0;
+  for (let i = results.length - 1; i >= 0 && results[i] === type; i--) count++;
+  return { type, count };
+}
+
+// Per-roster transaction tallies for a season.
+export type TxStats = { trades: number; moves: number };
+
+// Count completed trades and roster moves (waiver + free-agent adds) per roster
+// across a season by scanning the transaction log. Sleeper's roster
+// `total_moves` field is unreliable, so we count from the source.
+export async function getTransactionStatsForSeason(
+  leagueId: string
+): Promise<Map<number, TxStats>> {
+  const weeks = Array.from({ length: 18 }, (_, i) => i + 1);
+  const perWeek = await Promise.all(
+    weeks.map((w) =>
+      fetch(`${BASE}/league/${leagueId}/transactions/${w}`)
+        .then((r) => (r.ok ? r.json() : []))
+        .catch(() => [])
+    )
+  );
+
+  const map = new Map<number, TxStats>();
+  const ensure = (rid: number): TxStats => {
+    let e = map.get(rid);
+    if (!e) {
+      e = { trades: 0, moves: 0 };
+      map.set(rid, e);
+    }
+    return e;
+  };
+
+  for (const txs of perWeek) {
+    if (!Array.isArray(txs)) continue;
+    for (const t of txs) {
+      if (t.status !== "complete") continue;
+      const ids: number[] = t.roster_ids ?? [];
+      if (t.type === "trade") {
+        for (const rid of ids) ensure(rid).trades += 1;
+      } else if (t.type === "waiver" || t.type === "free_agent") {
+        for (const rid of ids) ensure(rid).moves += 1;
+      }
+    }
+  }
+  return map;
 }
 
 // One row of standings: a roster's record joined to its manager.

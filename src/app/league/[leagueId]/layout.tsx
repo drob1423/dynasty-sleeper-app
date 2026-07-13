@@ -1,10 +1,11 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element */
 import { useEffect, useState } from "react";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import { getLeague } from "@/lib/sleeper";
+import { getLeague, leagueLogoUrl } from "@/lib/sleeper";
 
 // The league workspace tabs. `segment: ""` is the Home tab (the base route).
 const TABS: { label: string; segment: string }[] = [
@@ -30,6 +31,7 @@ export default function LeagueLayout({
   const base = `/league/${leagueId}`;
 
   const [leagueName, setLeagueName] = useState("");
+  const [leagueLogo, setLeagueLogo] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -39,7 +41,10 @@ export default function LeagueLayout({
         return;
       }
       const league = await getLeague(leagueId);
-      if (league) setLeagueName(league.name);
+      if (league) {
+        setLeagueName(league.name);
+        setLeagueLogo(leagueLogoUrl(league.avatar));
+      }
     }
     load();
   }, [leagueId, router]);
@@ -57,9 +62,19 @@ export default function LeagueLayout({
         <Link href="/dashboard" className="text-sm text-zinc-500 hover:text-zinc-300">
           ← All leagues
         </Link>
-        <h1 className="mt-2 text-2xl font-bold text-white">
-          {leagueName || " "}
-        </h1>
+        <div className="mt-2 flex items-center gap-3">
+          {leagueLogo && (
+            <img
+              src={leagueLogo}
+              alt=""
+              className="h-9 w-9 shrink-0 rounded-lg object-cover"
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+              }}
+            />
+          )}
+          <h1 className="text-2xl font-bold text-white">{leagueName || " "}</h1>
+        </div>
 
         {/* Tab nav */}
         <nav className="mt-4 -mx-4 overflow-x-auto px-4">
