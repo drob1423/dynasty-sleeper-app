@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { getDynastyLeagues, type SleeperLeague } from "@/lib/sleeper";
 
@@ -83,14 +84,17 @@ export default function DashboardPage() {
         ) : (
           <ul className="space-y-3">
             {leagues.map((l) => (
-              <li
-                key={l.league_id}
-                className="flex items-center justify-between rounded-2xl border border-zinc-800 bg-zinc-900 p-5"
-              >
-                <span className="font-semibold text-white">{l.name}</span>
-                <span className="text-xs text-zinc-500">
-                  {l.total_rosters} teams
-                </span>
+              <li key={l.league_id}>
+                <Link
+                  href={`/league/${l.league_id}`}
+                  className="flex items-center justify-between rounded-2xl border border-zinc-800 bg-zinc-900 p-5 transition-colors hover:border-emerald-700 hover:bg-zinc-800/50"
+                >
+                  <span className="font-semibold text-white">{l.name}</span>
+                  <span className="flex items-center gap-3 text-xs text-zinc-500">
+                    {l.total_rosters} teams
+                    <span className="text-zinc-600">→</span>
+                  </span>
+                </Link>
               </li>
             ))}
           </ul>
