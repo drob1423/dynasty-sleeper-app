@@ -16,6 +16,7 @@ const POS_LABEL: Record<string, string> = {
   RB: "Running Back",
   WR: "Wide Receiver",
   TE: "Tight End",
+  FLEX: "Flex · RB/WR/TE",
 };
 
 export default function InsightsTab() {

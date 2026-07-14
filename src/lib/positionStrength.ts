@@ -20,9 +20,16 @@ import {
 
 const BASE = "https://api.sleeper.app/v1";
 
-// Positions we rank, in display order.
-export const RANKED_POSITIONS = ["QB", "RB", "WR", "TE"] as const;
-export type RankedPosition = (typeof RANKED_POSITIONS)[number];
+// Groups we rank, in display order. FLEX pools all skill positions into one
+// combined ranking (best overall RB/WR/TE corps).
+export const RANKED_GROUPS = [
+  { key: "QB", positions: ["QB"] },
+  { key: "RB", positions: ["RB"] },
+  { key: "WR", positions: ["WR"] },
+  { key: "TE", positions: ["TE"] },
+  { key: "FLEX", positions: ["RB", "WR", "TE"] },
+] as const;
+export type RankedPosition = (typeof RANKED_GROUPS)[number]["key"];
 
 // A player must have produced in at least this many games to be ranked, so
 // 1–2 game flukes don't distort the pool.
@@ -105,13 +112,15 @@ export async function getPositionStrength(
     currentRosters.map((r) => [r.roster_id, r.players ?? []])
   );
 
-  const result: PositionStrength[] = RANKED_POSITIONS.map((position) => {
-    // Rank every qualifying rostered player at this position, league-wide.
+  const result: PositionStrength[] = RANKED_GROUPS.map((group) => {
+    const position = group.key;
+    const eligible = new Set<string>(group.positions);
+    // Rank every qualifying rostered player in this group, league-wide.
     const ranked = currentRosters
       .flatMap((r) => r.players ?? [])
       .filter(
         (pid) =>
-          playerMap[pid]?.position === position &&
+          eligible.has(playerMap[pid]?.position ?? "") &&
           (games.get(pid) ?? 0) >= MIN_GAMES
       )
       .map((pid) => ({ pid, ppg: ppgOf(pid) }))
