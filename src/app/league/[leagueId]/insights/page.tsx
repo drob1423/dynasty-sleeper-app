@@ -292,7 +292,7 @@ function AxisRuler({ scaleMax }: { scaleMax: number }) {
           </span>
         ))}
       </div>
-      <span className="w-28 shrink-0 text-right">pts/wk</span>
+      <span className="w-16 shrink-0 text-right">pts/wk</span>
     </div>
   );
 }
@@ -321,43 +321,47 @@ function PlayerRow({ p, scaleMax, leagueId }: { p: RoomPlayer; scaleMax: number;
         </div>
       </div>
 
-      {/* the plot — pure shape, no scattered labels */}
-      <div className="relative h-10 flex-1">
+      {/* the plot — box/whisker with value labels along the top edge */}
+      <div className="relative h-12 flex-1">
         {Array.from({ length: Math.floor(scaleMax / 10) + 1 }, (_, k) => k * 10).map((v) => (
-          <div key={v} className="absolute top-0 bottom-0 w-px bg-zinc-800/70" style={{ left: pct(v) }} />
+          <div key={v} className="absolute top-3 bottom-0 w-px bg-zinc-800/70" style={{ left: pct(v) }} />
         ))}
         {/* range whisker */}
-        <div className="absolute top-1/2 h-px -translate-y-1/2 bg-zinc-600" style={{ left: pct(p.min), width: `calc(${pct(p.max)} - ${pct(p.min)})` }} />
+        <div className="absolute top-[calc(50%+6px)] h-px -translate-y-1/2 bg-zinc-600" style={{ left: pct(p.min), width: `calc(${pct(p.max)} - ${pct(p.min)})` }} />
         {/* interquartile box */}
         <div
-          className={`absolute top-1/2 h-4 -translate-y-1/2 rounded border ${
+          className={`absolute top-[calc(50%+6px)] h-4 -translate-y-1/2 rounded border ${
             p.isStarter ? "border-emerald-700/70 bg-emerald-500/15" : "border-sky-800/70 bg-sky-500/12"
           }`}
           style={{ left: pct(p.q1), width: `calc(${pct(p.q3)} - ${pct(p.q1)})` }}
         />
         {/* median */}
-        <div className="absolute top-1/2 h-5 w-0.5 -translate-y-1/2 bg-zinc-100" style={{ left: pct(p.median) }} title={`median ${p.median}`} />
+        <div className="absolute top-[calc(50%+6px)] h-5 w-0.5 -translate-y-1/2 bg-zinc-100" style={{ left: pct(p.median) }} title={`median ${p.median}`} />
         {/* mean */}
         <div
-          className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rotate-45 border border-white bg-zinc-900"
+          className="absolute top-[calc(50%+6px)] h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rotate-45 border border-white bg-zinc-900"
           style={{ left: pct(p.mean) }}
           title={`average ${p.mean}`}
         />
+        {/* value labels — all along the top edge */}
+        {[p.min, p.q1, p.q3, p.max].map((v, i) => (
+          <span
+            key={i}
+            className="absolute top-0 -translate-x-1/2 text-[9px] tabular-nums text-zinc-500"
+            style={{ left: pct(v) }}
+          >
+            {v.toFixed(1)}
+          </span>
+        ))}
       </div>
 
-      {/* aligned numeric readout — same columns down the whole list */}
-      <div className="w-28 shrink-0 text-right leading-tight tabular-nums">
+      {/* headline numbers */}
+      <div className="w-16 shrink-0 text-right leading-tight tabular-nums">
         <div className="text-xs">
           <span className="font-semibold text-white">{p.mean.toFixed(1)}</span>
           <span className="text-zinc-600"> avg</span>
         </div>
         <div className="text-[10px] text-zinc-500">{p.median.toFixed(1)} med</div>
-        <div className="text-[10px] text-zinc-600">
-          {p.min.toFixed(1)}–{p.max.toFixed(1)} <span className="text-zinc-700">range</span>
-        </div>
-        <div className="text-[10px] text-zinc-600">
-          {p.q1.toFixed(1)}–{p.q3.toFixed(1)} <span className="text-zinc-700">mid</span>
-        </div>
       </div>
     </div>
   );
