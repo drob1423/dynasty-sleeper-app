@@ -14,6 +14,7 @@ import {
   type PlayerProfile,
   type OwnerStint,
 } from "@/lib/playerProfile";
+import { getCachedPlayerStats, type PlayerStat } from "@/lib/roomStrength";
 import { PlayerTimeline } from "./PlayerTimeline";
 
 // Owner colors for the timeline + ownership band (avoids green/red, which mean
@@ -38,6 +39,7 @@ export default function PlayerProfilePage() {
   const [profile, setProfile] = useState<PlayerProfile | null>(null);
   const [scoringFormat, setScoringFormat] = useState<string>("");
   const [playerMap, setPlayerMap] = useState<Record<string, PlayerInfo>>({});
+  const [pstat, setPstat] = useState<PlayerStat | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -46,12 +48,14 @@ export default function PlayerProfilePage() {
         router.replace("/login");
         return;
       }
-      const [chain, players] = await Promise.all([
+      const [chain, players, cachedStats] = await Promise.all([
         getSeasonChain(leagueId),
         getPlayerMap(),
+        getCachedPlayerStats(leagueId),
       ]);
       setScoringFormat(chain[0]?.scoringFormat ?? "");
       setPlayerMap(players);
+      setPstat(cachedStats?.[playerId] ?? null);
       const pInfo = players[playerId] ?? null;
       setInfo(pInfo);
       const prof = await getPlayerProfile(
@@ -140,9 +144,14 @@ export default function PlayerProfilePage() {
         )}
       </div>
 
+      {/* Real production (from cached game logs, scored in this league's rules) */}
+      {pstat && <ProductionCard stat={pstat} scoringFormat={scoringFormat} />}
+
       {!hasData ? (
         <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6 text-sm text-zinc-400">
-          No games played yet for this player in the league.
+          {pstat
+            ? "He hasn't appeared in a lineup in your league yet — the scoring above is from his real games."
+            : "No games on record for this player yet."}
         </div>
       ) : (
         <>
@@ -217,6 +226,62 @@ export default function PlayerProfilePage() {
           </p>
         </>
       )}
+    </div>
+  );
+}
+
+// A player's real weekly-scoring distribution, from cached game logs.
+function ProductionCard({ stat, scoringFormat }: { stat: PlayerStat; scoringFormat: string }) {
+  const scaleMax = Math.max(30, Math.ceil(stat.max / 10) * 10);
+  const pct = (v: number) => `${Math.max(0, Math.min(100, (v / scaleMax) * 100))}%`;
+  const ticks: number[] = [];
+  for (let v = 0; v <= scaleMax; v += 10) ticks.push(v);
+  const small = stat.gp < 4;
+  return (
+    <div className="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
+      <div className="flex items-baseline justify-between text-[11px] uppercase tracking-wide text-zinc-500">
+        <span>Weekly scoring · his real games</span>
+        <span>
+          {stat.gp} game{stat.gp !== 1 && "s"}
+          {small && " · small sample"}
+          {scoringFormat && ` · ${scoringFormat}`}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+        <Stat label="Average" value={stat.mean.toFixed(1)} />
+        <Stat label="Median" value={stat.median.toFixed(1)} sub="typical week" />
+        <Stat label="Floor" value={stat.min.toFixed(1)} sub="worst" />
+        <Stat label="Ceiling" value={stat.max.toFixed(1)} sub="best" />
+        <Stat label="Middle 50%" value={`${stat.q1.toFixed(1)}–${stat.q3.toFixed(1)}`} />
+      </div>
+
+      {/* axis */}
+      <div className="relative h-3 text-[9px] text-zinc-600">
+        {ticks.map((v) => (
+          <span key={v} className="absolute -translate-x-1/2" style={{ left: pct(v) }}>
+            {v}
+          </span>
+        ))}
+        <span className="absolute right-0 -translate-y-0.5 text-zinc-700">pts/wk</span>
+      </div>
+      {/* box-and-whisker */}
+      <div className="relative h-12">
+        {ticks.map((v) => (
+          <div key={v} className="absolute top-3 bottom-0 w-px bg-zinc-800/70" style={{ left: pct(v) }} />
+        ))}
+        <div className="absolute top-[calc(50%+6px)] h-px -translate-y-1/2 bg-zinc-600" style={{ left: pct(stat.min), width: `calc(${pct(stat.max)} - ${pct(stat.min)})` }} />
+        <div className="absolute top-[calc(50%+6px)] h-5 -translate-y-1/2 rounded border border-emerald-700/70 bg-emerald-500/15" style={{ left: pct(stat.q1), width: `calc(${pct(stat.q3)} - ${pct(stat.q1)})` }} />
+        <div className="absolute top-[calc(50%+6px)] h-6 w-0.5 -translate-y-1/2 bg-zinc-100" style={{ left: pct(stat.median) }} title={`median ${stat.median}`} />
+        <div className="absolute top-[calc(50%+6px)] h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rotate-45 border border-white bg-zinc-900" style={{ left: pct(stat.mean) }} title={`average ${stat.mean}`} />
+        <span className="absolute top-0 -translate-x-1/2 text-[9px] tabular-nums text-zinc-500" style={{ left: pct(stat.min) }}>{stat.min.toFixed(1)}</span>
+        <span className="absolute top-0 -translate-x-1/2 text-[9px] tabular-nums text-zinc-400" style={{ left: pct((stat.q1 + stat.q3) / 2) }}>{stat.q1.toFixed(1)}–{stat.q3.toFixed(1)}</span>
+        <span className="absolute top-0 -translate-x-1/2 text-[9px] tabular-nums text-zinc-500" style={{ left: pct(stat.max) }}>{stat.max.toFixed(1)}</span>
+      </div>
+      <p className="text-[11px] text-zinc-600">
+        Box = middle 50% of weeks · white line = median (typical week) · ◆ = average · whiskers =
+        worst → best. All scored in your league&rsquo;s rules.
+      </p>
     </div>
   );
 }
