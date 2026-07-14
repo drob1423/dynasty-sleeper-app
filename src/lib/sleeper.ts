@@ -96,6 +96,7 @@ export type PlayerInfo = {
   team: string | null;
   age: number | null;
   yearsExp: number | null;
+  fantasyPositions: string[];
 };
 
 type CompactPlayer = {
@@ -104,6 +105,7 @@ type CompactPlayer = {
   t: string | null;
   a: number | null;
   e: number | null;
+  f?: string[];
 };
 
 let playerCache: Record<string, PlayerInfo> | null = null;
@@ -124,6 +126,7 @@ export async function getPlayerMap(): Promise<Record<string, PlayerInfo>> {
       team: c.t,
       age: c.a,
       yearsExp: c.e,
+      fantasyPositions: c.f ?? (c.p ? [c.p] : []),
     };
   }
   playerCache = map;
@@ -173,6 +176,7 @@ export type SleeperLeagueDetail = SleeperLeague & {
   status: string; // "pre_draft" | "drafting" | "in_season" | "complete"
   playoff_week_start: number;
   waiverBudget: number; // total FAAB budget for the season
+  rosterPositions: string[]; // lineup slots, e.g. ["QB","QB","RB",...,"BN",...]
 };
 
 export async function getLeague(
@@ -193,6 +197,9 @@ export async function getLeague(
     status: l.status,
     playoff_week_start: l.settings?.playoff_week_start ?? 15,
     waiverBudget: l.settings?.waiver_budget ?? 100,
+    rosterPositions: Array.isArray(l.roster_positions)
+      ? l.roster_positions
+      : [],
   };
 }
 

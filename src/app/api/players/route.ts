@@ -7,7 +7,14 @@ export const revalidate = 86400;
 // trim it to the few fields the app needs, and return a compact map keyed by
 // player_id. Short keys keep the payload small: n=name, p=position, t=team,
 // a=age, e=years of experience.
-type Compact = { n: string; p: string | null; t: string | null; a: number | null; e: number | null };
+type Compact = {
+  n: string;
+  p: string | null;
+  t: string | null;
+  a: number | null;
+  e: number | null;
+  f: string[]; // fantasy_positions (slot eligibility)
+};
 
 export async function GET() {
   const res = await fetch("https://api.sleeper.app/v1/players/nfl", {
@@ -39,6 +46,11 @@ export async function GET() {
       t: (p.team as string) ?? null,
       a: (p.age as number) ?? null,
       e: (p.years_exp as number) ?? null,
+      f: Array.isArray(p.fantasy_positions)
+        ? (p.fantasy_positions as string[])
+        : position
+        ? [position]
+        : [],
     };
   }
 

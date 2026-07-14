@@ -2,6 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { getFullRosters, getPlayerMap, type PlayerInfo } from "@/lib/sleeper";
 
 const POS_ORDER = ["QB", "RB", "WR", "TE", "K", "DEF"];
@@ -60,14 +61,25 @@ export function RosterView({
     return <p className="py-6 text-center text-zinc-400">Loading roster…</p>;
   }
 
+  // Within a position group: starters first, then bench, then taxi, then IR;
+  // and within each of those, youngest first (dynasty lens).
+  const statusRank = (p: RosterPlayer) =>
+    p.isStarter ? 0 : p.isIR ? 3 : p.isTaxi ? 2 : 1;
+  const sortRoster = (a: RosterPlayer, b: RosterPlayer) =>
+    statusRank(a) - statusRank(b) ||
+    (a.info.age ?? 99) - (b.info.age ?? 99) ||
+    a.info.name.localeCompare(b.info.name);
+
   const groups = [...POS_ORDER, "Other"]
     .map((pos) => ({
       pos,
-      players: players.filter((p) =>
-        pos === "Other"
-          ? !POS_ORDER.includes(p.info.position ?? "?")
-          : p.info.position === pos
-      ),
+      players: players
+        .filter((p) =>
+          pos === "Other"
+            ? !POS_ORDER.includes(p.info.position ?? "?")
+            : p.info.position === pos
+        )
+        .sort(sortRoster),
     }))
     .filter((g) => g.players.length > 0);
 
@@ -81,10 +93,11 @@ export function RosterView({
           </h3>
           <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
             {g.players.map((p, i) => (
-              <div
+              <Link
                 key={p.id}
+                href={`/league/${leagueId}/player/${p.id}`}
                 className={[
-                  "flex items-center gap-3 px-4 py-3",
+                  "flex items-center gap-3 px-4 py-3 transition-colors hover:bg-zinc-800/50",
                   i > 0 ? "border-t border-zinc-800/60" : "",
                 ].join(" ")}
               >
@@ -107,7 +120,7 @@ export function RosterView({
                 <span className="text-xs font-medium text-zinc-600">
                   {p.info.position}
                 </span>
-              </div>
+              </Link>
             ))}
           </div>
         </div>
