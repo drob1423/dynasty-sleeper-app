@@ -58,11 +58,8 @@ export function TeamScoreCard({
         </div>
       </div>
 
-      {/* Your head-to-head vs this team (hidden on your own card) */}
-      <H2HStrip rec={t.h2h} />
-
-      {/* Records + streak */}
-      <div className="mt-4 grid grid-cols-3 divide-x divide-zinc-800 rounded-xl bg-zinc-950/60 py-3">
+      {/* Their vitals — all-time first */}
+      <div className="mt-4 grid grid-cols-3 gap-1 rounded-xl bg-zinc-950/40 py-3">
         <BigStat label="All-Time" value={`${t.dynastyW}-${t.dynastyL}`} />
         <BigStat label="This Year" value={`${t.currentW}-${t.currentL}`} />
         <BigStat
@@ -88,8 +85,11 @@ export function TeamScoreCard({
         </div>
       )}
 
-      {/* Activity (secondary) */}
-      <div className="mt-3 flex justify-between border-t border-zinc-800/60 pt-3 text-xs text-zinc-500">
+      {/* Your head-to-head vs this team (hidden on your own card) */}
+      <H2HStrip rec={t.h2h} />
+
+      {/* Activity footer */}
+      <div className="mt-4 flex justify-between border-t border-zinc-800/60 pt-3 text-xs text-zinc-500">
         <span>
           Trades <span className="font-semibold text-zinc-300">{t.trades}</span>
         </span>
@@ -135,40 +135,28 @@ function H2HStrip({ rec }: { rec: H2HRecord | null }) {
       : "text-zinc-400";
 
   return (
-    <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-950/60 px-3.5 py-2">
-      <div className="flex items-center justify-between">
-        <span className="text-[11px] uppercase tracking-wide text-zinc-500">
-          H2H Record
-        </span>
-        <span className="text-sm">
+    <div className="mt-4 rounded-xl border border-emerald-900/50 bg-emerald-950/20 px-3.5 py-2.5">
+      <div className="mb-1.5 text-[10px] uppercase tracking-wide text-zinc-500">
+        Your record vs them
+      </div>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-[15px]">
           <span className={`font-semibold ${color(rec.regW, rec.regL)}`}>
             {rec.regW}–{rec.regL}
             {rec.regT > 0 && `–${rec.regT}`}
           </span>
-          <span className="text-zinc-600"> reg</span>
-          <span className={`ml-2.5 font-semibold ${color(rec.poW, rec.poL)}`}>
+          <span className="text-xs text-zinc-600"> reg</span>
+          <span className={`ml-2 font-semibold ${color(rec.poW, rec.poL)}`}>
             {rec.poW}–{rec.poL}
           </span>
-          <span className="text-zinc-600"> po</span>
+          <span className="text-xs text-zinc-600"> po</span>
         </span>
-      </div>
-      <div className="mt-1 flex items-center justify-between">
-        <span className="text-[11px] uppercase tracking-wide text-zinc-500">
-          Avg score
-        </span>
-        <span className="text-sm">
-          {myAvg != null && oppAvg != null ? (
-            <>
-              <span className={`font-semibold ${avgColor}`}>
-                {myAvg.toFixed(1)}
-              </span>
-              <span className="text-zinc-600"> – </span>
-              <span className="text-zinc-300">{oppAvg.toFixed(1)}</span>
-            </>
-          ) : (
-            <span className="text-zinc-500">—</span>
-          )}
-        </span>
+        {myAvg != null && oppAvg != null && (
+          <span className="shrink-0 text-xs">
+            <span className={`font-medium ${avgColor}`}>{myAvg.toFixed(1)}</span>
+            <span className="text-zinc-600">–{oppAvg.toFixed(1)} avg</span>
+          </span>
+        )}
       </div>
     </div>
   );
