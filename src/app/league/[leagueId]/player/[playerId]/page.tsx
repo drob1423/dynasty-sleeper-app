@@ -227,13 +227,14 @@ function StintCard({ stint, color }: { stint: OwnerStint; color: string }) {
       }}
     >
       <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
+        <div className="flex min-w-0 items-center gap-2.5">
           <span
             className="h-4 w-4 shrink-0 rounded-full"
             style={{ background: color }}
           />
-          <span className="font-medium text-white">{s.name}</span>
-          <span className="text-xs text-zinc-500">
+          <span className="truncate font-medium text-white">{s.name}</span>
+          <span className="shrink-0 text-xs text-zinc-500">@{s.handle}</span>
+          <span className="shrink-0 text-xs text-zinc-600">
             {s.firstLabel} – {s.isCurrent ? "now" : s.lastLabel}
           </span>
         </div>
