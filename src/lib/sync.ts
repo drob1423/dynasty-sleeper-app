@@ -182,10 +182,11 @@ async function computeLeaguePlayerStats(admin: Admin, chain: LeagueDetail[]): Pr
   const scoring = head.scoring_settings;
   const seasons = new Set(chain.map((l) => l.season));
 
-  const { data: weeks } = await admin
-    .from("nfl_stats_weekly")
-    .select("season, payload")
-    .in("season", [...seasons]);
+  const [{ data: weeks }, { data: cat }] = await Promise.all([
+    admin.from("nfl_stats_weekly").select("season, payload").in("season", [...seasons]),
+    admin.from("nfl_players").select("payload").maybeSingle(),
+  ]);
+  const catalog = (cat?.payload ?? {}) as Record<string, { position?: string }>;
 
   // Collect each player's weekly fantasy scores across their real games.
   const scores = new Map<string, number[]>();
@@ -194,6 +195,12 @@ async function computeLeaguePlayerStats(admin: Admin, chain: LeagueDetail[]): Pr
     for (const pid in payload) {
       const raw = payload[pid];
       if (!(raw.gp >= 1)) continue; // count only weeks the player actually played (gp present & ≥1)
+      // QBs must play a meaningful snap share, else mop-up/relief cameos (a few
+      // snaps for ~0 points) tank their floor and median.
+      if (catalog[pid]?.position === "QB") {
+        const tm = raw.tm_off_snp ?? 0;
+        if (tm > 0 && (raw.off_snp ?? 0) / tm < 0.25) continue;
+      }
       const pts = scorePlayerWeek(raw, scoring);
       const arr = scores.get(pid) ?? [];
       arr.push(pts);
