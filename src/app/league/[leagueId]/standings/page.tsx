@@ -382,7 +382,9 @@ function AllTimeTable({ rows }: { rows: AllTimeTableRow[] }) {
                 <td className="px-3 py-3 text-right align-top text-zinc-300">
                   <div>{row.pf.toFixed(1)}</div>
                   <div
-                    className="mt-0.5 text-xs text-zinc-500"
+                    className={`mt-0.5 text-xs ${
+                      back < 0.05 ? "text-zinc-600" : "text-red-400"
+                    }`}
                     title="Points behind the top scorer"
                   >
                     {back < 0.05 ? "—" : `-${back.toFixed(1)}`}
