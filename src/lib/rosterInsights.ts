@@ -77,8 +77,11 @@ export async function getRosterInsights(
     string,
     { slot: number; playerId: string | null }
   >();
-  for (let si = 0; si < oldestFirst.length; si++) {
-    const season = oldestFirst[si];
+  // Include every season in the chain (even the upcoming pre-draft one, whose
+  // ORDER is set even though no picks are made yet).
+  const draftSeasons = [...chain].reverse();
+  for (let si = 0; si < draftSeasons.length; si++) {
+    const season = draftSeasons[si];
     try {
       const drafts = await fetch(`${BASE}/league/${season.league_id}/drafts`)
         .then((r) => (r.ok ? r.json() : []))
@@ -90,22 +93,48 @@ export async function getRosterInsights(
         const picks = await fetch(`${BASE}/draft/${d.draft_id}/picks`)
           .then((r) => (r.ok ? r.json() : []))
           .catch(() => []);
-        for (const pk of picks) {
-          if (pk.roster_id != null && pk.round != null) {
-            draftPickLookup.set(`${season.season}-${pk.round}-${pk.roster_id}`, {
-              slot: pk.draft_slot ?? pk.pick_no ?? 0,
-              playerId: pk.player_id ?? null,
-            });
+
+        if (picks.length > 0) {
+          // Completed draft — resolve slot + the player selected.
+          for (const pk of picks) {
+            if (pk.roster_id != null && pk.round != null) {
+              draftPickLookup.set(
+                `${season.season}-${pk.round}-${pk.roster_id}`,
+                {
+                  slot: pk.draft_slot ?? pk.pick_no ?? 0,
+                  playerId: pk.player_id ?? null,
+                }
+              );
+            }
+            if (
+              pk.player_id &&
+              rosterSet.has(pk.player_id) &&
+              pk.picked_by === ownerId
+            ) {
+              noteAcq(pk.player_id, si * 100, {
+                method: "draft",
+                label: `${kind} '${yy} · R${pk.round}.${pk.pick_no}`,
+              });
+            }
           }
-          if (
-            pk.player_id &&
-            rosterSet.has(pk.player_id) &&
-            pk.picked_by === ownerId
-          ) {
-            noteAcq(pk.player_id, si * 100, {
-              method: "draft",
-              label: `${kind} '${yy} · R${pk.round}.${pk.pick_no}`,
-            });
+        } else if (d.draft_order) {
+          // Upcoming draft — order set, no picks. Resolve each roster's slot.
+          const rosters = await getRosters(season.league_id);
+          const numTeams = rosters.length;
+          const isSnake = d.type === "snake";
+          for (const r of rosters) {
+            const baseSlot: number | undefined = r.owner_id
+              ? d.draft_order[r.owner_id]
+              : undefined;
+            if (baseSlot == null) continue;
+            for (let round = 1; round <= rounds; round++) {
+              const slot =
+                isSnake && round % 2 === 0 ? numTeams + 1 - baseSlot : baseSlot;
+              draftPickLookup.set(`${season.season}-${round}-${r.roster_id}`, {
+                slot,
+                playerId: null,
+              });
+            }
           }
         }
       }
@@ -331,6 +360,11 @@ function buildTrade(
         const name = playerMap[resolved.playerId]?.name ?? "pick";
         received.push(
           `'${yy} R${pk.round}.${String(resolved.slot).padStart(2, "0")} → ${name}`
+        );
+      } else if (resolved) {
+        // Slot known (order set) but not drafted yet.
+        received.push(
+          `'${yy} R${pk.round}.${String(resolved.slot).padStart(2, "0")} (TBD)`
         );
       } else {
         received.push(`'${yy} R${pk.round} pick`);
