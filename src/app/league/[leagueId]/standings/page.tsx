@@ -318,21 +318,20 @@ function AllTimeTable({ rows }: { rows: AllTimeTableRow[] }) {
 
   return (
     <div className="overflow-x-auto rounded-2xl border border-zinc-800 bg-zinc-900">
-      <table className="w-full min-w-[560px] text-sm">
+      <table className="w-full min-w-[460px] text-sm">
         <thead>
           {/* Group header row */}
           <tr className="text-xs uppercase tracking-wide text-zinc-400">
             <th className="px-4 pt-3 pb-1" />
-            <th className="px-4 pt-3 pb-1" />
-            <th className="px-3 pt-3 pb-1" />
+            <th className="px-2 pt-3 pb-1" />
             <th
-              className={`px-3 pt-3 pb-1 text-center font-semibold text-emerald-400 ${groupEdge}`}
+              className={`px-2 pt-3 pb-1 text-center font-semibold text-emerald-400 ${groupEdge}`}
               colSpan={3}
             >
               Regular Season
             </th>
             <th
-              className={`px-3 pt-3 pb-1 text-center font-semibold text-amber-400 ${groupEdge}`}
+              className={`px-2 pt-3 pb-1 text-center font-semibold text-amber-400 ${groupEdge}`}
               colSpan={2}
             >
               Playoffs
@@ -340,18 +339,17 @@ function AllTimeTable({ rows }: { rows: AllTimeTableRow[] }) {
           </tr>
           {/* Sub-header row */}
           <tr className="border-b border-zinc-800 text-left text-xs uppercase tracking-wide text-zinc-500">
-            <th className="px-4 pb-3 font-medium">#</th>
             <th className="px-4 pb-3 font-medium">Team</th>
-            <th className="px-3 pb-3 text-center font-medium">Szn</th>
-            <th className={`px-3 pb-3 text-center font-medium ${groupEdge}`}>
+            <th className="px-2 pb-3 text-center font-medium">Szn</th>
+            <th className={`px-2 pb-3 text-center font-medium ${groupEdge}`}>
               Record
             </th>
-            <th className="px-3 pb-3 text-right font-medium">PF</th>
-            <th className="px-3 pb-3 text-right font-medium">PA</th>
-            <th className={`px-3 pb-3 text-center font-medium ${groupEdge}`}>
+            <th className="px-2 pb-3 text-right font-medium">PF</th>
+            <th className="px-2 pb-3 text-right font-medium">PA</th>
+            <th className={`px-2 pb-3 text-center font-medium ${groupEdge}`}>
               Record
             </th>
-            <th className="px-3 pb-3 text-center font-medium">Apps</th>
+            <th className="px-2 pb-3 text-center font-medium">Apps</th>
           </tr>
         </thead>
         <tbody>
@@ -359,27 +357,33 @@ function AllTimeTable({ rows }: { rows: AllTimeTableRow[] }) {
             const back = topPF - row.pf;
             return (
               <tr key={row.key} className="border-b border-zinc-800/60 last:border-0">
-                <td className="px-4 py-3 align-top text-zinc-500">{i + 1}</td>
                 <td className="px-4 py-3">
-                  <div className="font-medium text-white">@{row.handle}</div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="w-5 shrink-0 text-xs font-semibold tabular-nums text-zinc-500">
+                      {i + 1}
+                    </span>
+                    <span className="font-medium text-white">@{row.handle}</span>
+                  </div>
                   {row.medals.length > 0 && (
-                    <div className="mt-1">
+                    <div className="mt-1 pl-7">
                       <Medals medals={row.medals} />
                     </div>
                   )}
                   {row.subtitle && (
-                    <div className="mt-1 text-xs text-zinc-600">{row.subtitle}</div>
+                    <div className="mt-1 pl-7 text-xs text-zinc-600">
+                      {row.subtitle}
+                    </div>
                   )}
                 </td>
-                <td className="px-3 py-3 text-center align-top text-zinc-300">
+                <td className="px-2 py-3 text-center align-top text-zinc-300">
                   {row.seasons}
                 </td>
                 <td
-                  className={`px-3 py-3 text-center align-top font-medium text-white ${groupEdge}`}
+                  className={`px-2 py-3 text-center align-top font-medium text-white ${groupEdge}`}
                 >
                   {row.reg}
                 </td>
-                <td className="px-3 py-3 text-right align-top text-zinc-300">
+                <td className="px-2 py-3 text-right align-top text-zinc-300">
                   <div>{row.pf.toFixed(1)}</div>
                   <div
                     className={`mt-0.5 text-xs ${
@@ -390,15 +394,15 @@ function AllTimeTable({ rows }: { rows: AllTimeTableRow[] }) {
                     {back < 0.05 ? "—" : `-${back.toFixed(1)}`}
                   </div>
                 </td>
-                <td className="px-3 py-3 text-right align-top text-zinc-400">
+                <td className="px-2 py-3 text-right align-top text-zinc-400">
                   {row.pa.toFixed(1)}
                 </td>
                 <td
-                  className={`px-3 py-3 text-center align-top font-medium text-white ${groupEdge}`}
+                  className={`px-2 py-3 text-center align-top font-medium text-white ${groupEdge}`}
                 >
                   {row.playoff}
                 </td>
-                <td className="px-3 py-3 text-center align-top text-zinc-300">
+                <td className="px-2 py-3 text-center align-top text-zinc-300">
                   {row.mainApps}
                 </td>
               </tr>
