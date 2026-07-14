@@ -36,6 +36,7 @@ export default function PlayerProfilePage() {
   const [loading, setLoading] = useState(true);
   const [info, setInfo] = useState<PlayerInfo | null>(null);
   const [profile, setProfile] = useState<PlayerProfile | null>(null);
+  const [scoringFormat, setScoringFormat] = useState<string>("");
 
   useEffect(() => {
     async function load() {
@@ -48,6 +49,7 @@ export default function PlayerProfilePage() {
         getSeasonChain(leagueId),
         getPlayerMap(),
       ]);
+      setScoringFormat(chain[0]?.scoringFormat ?? "");
       const pInfo = players[playerId] ?? null;
       setInfo(pInfo);
       const prof = await getPlayerProfile(
@@ -126,8 +128,11 @@ export default function PlayerProfilePage() {
             </div>
             <div className="text-sm font-medium text-white">
               {profile.ownerCount} owner{profile.ownerCount !== 1 && "s"} ·{" "}
-              {profile.totalStartedPts.toFixed(0)} pts
+              {profile.totalRosteredPts.toFixed(0)} pts
             </div>
+            {scoringFormat && (
+              <div className="text-[11px] text-zinc-500">{scoringFormat}</div>
+            )}
           </div>
         )}
       </div>
@@ -201,9 +206,10 @@ export default function PlayerProfilePage() {
           </div>
 
           <p className="text-xs text-zinc-600">
-            Pts benched = points he scored while on the bench · Cost you =
-            marginal points lost (weeks he&apos;d have outscored the lineup guy
-            he replaced). Regular season only.
+            All points use this league&apos;s scoring. In-league pts = everything
+            he scored while rostered (started + benched). Pts benched = points
+            scored on the bench · Cost you = marginal points lost (weeks he&apos;d
+            have outscored the lineup guy he replaced). Regular season only.
           </p>
         </>
       )}

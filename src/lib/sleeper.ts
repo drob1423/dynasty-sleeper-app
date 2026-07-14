@@ -177,6 +177,7 @@ export type SleeperLeagueDetail = SleeperLeague & {
   playoff_week_start: number;
   waiverBudget: number; // total FAAB budget for the season
   rosterPositions: string[]; // lineup slots, e.g. ["QB","QB","RB",...,"BN",...]
+  scoringFormat: string; // e.g. "PPR · 2QB" — this league's scoring settings
 };
 
 export async function getLeague(
@@ -200,7 +201,22 @@ export async function getLeague(
     rosterPositions: Array.isArray(l.roster_positions)
       ? l.roster_positions
       : [],
+    scoringFormat: deriveScoringFormat(l),
   };
+}
+
+// Human label for a league's scoring: PPR/Half/Standard, plus a 2QB/Superflex
+// tag when applicable.
+function deriveScoringFormat(l: {
+  scoring_settings?: { rec?: number };
+  roster_positions?: string[];
+}): string {
+  const rec = l.scoring_settings?.rec ?? 0;
+  const ppr = rec >= 1 ? "PPR" : rec >= 0.5 ? "Half-PPR" : "Standard";
+  const rp = l.roster_positions ?? [];
+  const superflex =
+    rp.includes("SUPER_FLEX") || rp.filter((s) => s === "QB").length >= 2;
+  return superflex ? `${ppr} · 2QB` : ppr;
 }
 
 // Build a Sleeper avatar URL from an avatar id (thumb size).

@@ -47,8 +47,9 @@ export type TimelinePoint = {
 };
 
 export type PlayerProfile = {
-  totalStartedPts: number;
-  ppg: number;
+  totalRosteredPts: number; // all points scored while on a roster (started + benched)
+  totalStartedPts: number; // points that counted (while in a lineup)
+  ppg: number; // per game when started
   ownerCount: number;
   stints: OwnerStint[]; // chronological (oldest first)
   timeline: TimelinePoint[]; // chronological (oldest first)
@@ -340,8 +341,10 @@ export async function getPlayerProfile(
 
   const totalStartedPts = stints.reduce((s, x) => s + x.ppgStarted * x.startedGames, 0);
   const totalStartedGames = stints.reduce((s, x) => s + x.startedGames, 0);
+  const totalRosteredPts = timeline.reduce((s, t) => s + t.pts, 0);
 
   return {
+    totalRosteredPts,
     totalStartedPts,
     ppg: totalStartedGames ? totalStartedPts / totalStartedGames : 0,
     ownerCount: stints.length,
