@@ -192,7 +192,7 @@ async function computeLeaguePlayerStats(admin: Admin, chain: LeagueDetail[]): Pr
     const payload = row.payload as Record<string, Record<string, number>>;
     for (const pid in payload) {
       const raw = payload[pid];
-      if ((raw.gp ?? 1) < 1) continue; // count only weeks the player was active
+      if (!(raw.gp >= 1)) continue; // count only weeks the player actually played (gp present & ≥1)
       const pts = scorePlayerWeek(raw, scoring);
       const arr = scores.get(pid) ?? [];
       arr.push(pts);
