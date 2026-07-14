@@ -36,6 +36,7 @@ export type OwnerStint = {
   recStartedL: number;
   rawBenchPts: number;
   marginalBenchPts: number;
+  shouldHaveStarted: number; // # benched weeks where starting him would've helped
 };
 
 export type TimelinePoint = {
@@ -97,6 +98,7 @@ type Acc = {
   recL: number;
   rawBench: number;
   marginal: number;
+  shouldStart: number;
   firstOrder: number | null;
   firstLabel: string;
   lastLabel: string;
@@ -132,6 +134,7 @@ export async function getPlayerProfile(
         recL: 0,
         rawBench: 0,
         marginal: 0,
+        shouldStart: 0,
         firstOrder: null,
         firstLabel: "",
         lastLabel: "",
@@ -264,13 +267,15 @@ export async function getPlayerProfile(
           }
         } else {
           a.rawBench += pts;
-          a.marginal += marginalForWeek(
+          const m = marginalForWeek(
             rosterPositions,
             startersArr,
             pp,
             pts,
             fantasyPositions
           );
+          a.marginal += m;
+          if (m > 0) a.shouldStart += 1;
         }
       }
     });
@@ -331,6 +336,7 @@ export async function getPlayerProfile(
       recStartedL: a.recL,
       rawBenchPts: a.rawBench,
       marginalBenchPts: a.marginal,
+      shouldHaveStarted: a.shouldStart,
     });
   });
   stints.sort(

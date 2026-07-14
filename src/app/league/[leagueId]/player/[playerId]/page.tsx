@@ -271,6 +271,11 @@ function StintCard({ stint, color }: { stint: OwnerStint; color: string }) {
           label="Cost you"
           value={s.marginalBenchPts.toFixed(0)}
           color={s.marginalBenchPts >= 20 ? "text-red-400" : "text-white"}
+          sub={
+            s.shouldHaveStarted > 0
+              ? `${s.shouldHaveStarted} bad sit${s.shouldHaveStarted !== 1 ? "s" : ""}`
+              : "—"
+          }
         />
       </div>
     </div>
