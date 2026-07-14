@@ -130,6 +130,11 @@ export async function getRosterInsights(
         r.ok ? r.json() : []
       );
       for (const d of drafts) {
+        // A deep draft (many rounds) is the startup; a short one is a rookie
+        // draft.
+        const rounds: number = d.settings?.rounds ?? 0;
+        const kind = rounds >= 10 ? "Startup" : "Rookie";
+        const yy = season.season.slice(2);
         const picks = await fetch(`${BASE}/draft/${d.draft_id}/picks`).then(
           (r) => (r.ok ? r.json() : [])
         );
@@ -141,7 +146,7 @@ export async function getRosterInsights(
           ) {
             noteAcq(pk.player_id, si * 100, {
               method: "draft",
-              label: `Draft R${pk.round}.${pk.pick_no}`,
+              label: `${kind} '${yy} · R${pk.round}.${pk.pick_no}`,
             });
           }
         }
