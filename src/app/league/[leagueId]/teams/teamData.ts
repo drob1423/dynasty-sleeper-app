@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { getMemberSleeperIds } from "@/lib/members";
 import {
   getFullRosters,
   getLeagueUsers,
@@ -33,6 +34,7 @@ export type TeamCard = {
   form: ("W" | "L" | "T")[]; // last 5 regular-season results, oldest→newest
   h2h: H2HRecord | null; // logged-in user's record vs this team (null on own team)
   isMe: boolean; // this is the logged-in user's team
+  isMember: boolean; // this owner has an app account
   newOwner: boolean; // current owner just took over the slot (hasn't played)
   tookOverFrom: string | null; // handle of the previous owner
   trades: number;
@@ -45,13 +47,15 @@ export type TeamCard = {
 export async function loadTeamCards(
   leagueId: string
 ): Promise<{ cards: TeamCard[]; lastSeason: string | null }> {
-  const [auth, currentFull, users, players, chain] = await Promise.all([
-    supabase.auth.getUser(),
-    getFullRosters(leagueId),
-    getLeagueUsers(leagueId),
-    getPlayerMap(),
-    getSeasonChain(leagueId),
-  ]);
+  const [auth, currentFull, users, players, chain, memberIds] =
+    await Promise.all([
+      supabase.auth.getUser(),
+      getFullRosters(leagueId),
+      getLeagueUsers(leagueId),
+      getPlayerMap(),
+      getSeasonChain(leagueId),
+      getMemberSleeperIds(),
+    ]);
   const byId = new Map(users.map((u: SleeperManager) => [u.user_id, u]));
   const myUserId = auth.data.user?.user_metadata?.sleeper_user_id as
     | string
@@ -140,6 +144,7 @@ export async function loadTeamCards(
     const u = r.owner_id ? byId.get(r.owner_id) : undefined;
     const d = dyn.get(r.roster_id) ?? { w: 0, l: 0 };
     const isMe = !!myUserId && r.owner_id === myUserId;
+    const isMember = !!r.owner_id && memberIds.has(r.owner_id);
     const prevOwner = prevOwnerByRoster.get(r.roster_id) ?? null;
     const newOwner = !!prevOwner && !!r.owner_id && prevOwner !== r.owner_id;
     const tookOverFrom = newOwner ? prevHandleById.get(prevOwner) ?? null : null;
@@ -177,6 +182,7 @@ export async function loadTeamCards(
             oppPtsForPO: 0,
           },
       isMe,
+      isMember,
       newOwner,
       tookOverFrom,
       trades: trades.get(r.roster_id) ?? 0,

@@ -54,6 +54,14 @@ export function TeamScoreCard({
               {t.handle}
             </span>
             {t.place && <span className="shrink-0">{medalEmoji(t.place)}</span>}
+            {t.isMember && (
+              <span
+                title="On the app"
+                className="shrink-0 rounded-full border border-emerald-800 bg-emerald-950/50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-400"
+              >
+                ● Member
+              </span>
+            )}
             {t.newOwner && (
               <span className="shrink-0 rounded-full border border-amber-900 bg-amber-950/40 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-amber-400">
                 New

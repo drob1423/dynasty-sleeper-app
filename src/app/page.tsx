@@ -57,7 +57,7 @@ export default function SignupPage() {
 
     // Step 3: create the real account in Supabase. We attach their verified
     // Sleeper identity to the account so we never have to re-look it up.
-    const { error: signUpError } = await supabase.auth.signUp({
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -69,13 +69,25 @@ export default function SignupPage() {
       },
     });
 
-    setLoading(false);
-
     if (signUpError) {
+      setLoading(false);
       // Most common: email already registered
       setError(signUpError.message);
       return;
     }
+
+    // Mirror the Sleeper identity into the public profiles table so leaguemates
+    // can see who's joined the app. (auth metadata isn't readable across users.)
+    if (signUpData.user) {
+      await supabase.from("profiles").upsert({
+        id: signUpData.user.id,
+        sleeper_user_id: user.user_id,
+        sleeper_username: user.username,
+        sleeper_display_name: user.display_name,
+      });
+    }
+
+    setLoading(false);
 
     setDisplayName(user.display_name);
     setLeagues(dynasty);
