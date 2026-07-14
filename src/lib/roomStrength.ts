@@ -29,7 +29,7 @@ const MIN_GAMES = 4; // enough real games to be ranked
 export type PlayerStat = {
   gp: number; mean: number; median: number;
   min: number; q1: number; q3: number; max: number;
-  weeks?: number[]; // each game's points (optional until re-synced)
+  log?: [number, number, number][]; // chronological [seasonYY, week, points]
 };
 
 export type RoomPlayer = PlayerStat & {

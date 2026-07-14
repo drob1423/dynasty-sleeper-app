@@ -40,6 +40,7 @@ export default function PlayerProfilePage() {
   const [scoringFormat, setScoringFormat] = useState<string>("");
   const [playerMap, setPlayerMap] = useState<Record<string, PlayerInfo>>({});
   const [pstat, setPstat] = useState<PlayerStat | null>(null);
+  const [tab, setTab] = useState("overview");
 
   useEffect(() => {
     async function load() {
@@ -97,106 +98,124 @@ export default function PlayerProfilePage() {
 
   const hasData = (profile?.timeline.length ?? 0) > 0;
 
+  const tabs: { key: string; label: string }[] = [
+    { key: "overview", label: "Overview" },
+  ];
+  if (pstat?.log?.length) tabs.push({ key: "log", label: "Game Log" });
+  if (hasData) tabs.push({ key: "league", label: "In League" });
+  const active = tabs.some((t) => t.key === tab) ? tab : "overview";
+
+  const acc = posAccent(info?.position);
+
   return (
-    <div className="space-y-5">
-      <button
-        onClick={() => router.back()}
-        className="text-sm text-zinc-500 hover:text-zinc-300"
-      >
+    <div className="space-y-4">
+      <button onClick={() => router.back()} className="text-sm text-zinc-500 hover:text-zinc-300">
         ← Back
       </button>
 
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-800">
-          <img
-            src={photo}
-            alt=""
-            className={isDef ? "h-9 w-9 object-contain" : "h-14 w-14 object-cover"}
-            onError={(e) => {
-              e.currentTarget.style.display = "none";
-            }}
-          />
-        </div>
-        <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-bold text-white">{name}</h1>
-          <p className="text-sm text-zinc-500">
-            {info?.position ?? "?"}
-            {info?.team && ` · ${info.team}`}
-            {info?.age != null && ` · ${info.age} yrs`}
-            {info?.yearsExp != null &&
-              ` · ${info.yearsExp === 0 ? "Rookie" : `${info.yearsExp} exp`}`}
-          </p>
-        </div>
-        {profile && (
-          <div className="text-right">
-            <div className="text-[11px] uppercase tracking-wide text-zinc-500">
-              In-league
+      {/* Header banner */}
+      <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
+        <div className={`flex items-center gap-4 p-5 ${acc.wash}`}>
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-800 ring-2 ring-zinc-700">
+            <img
+              src={photo}
+              alt=""
+              className={isDef ? "h-10 w-10 object-contain" : "h-16 w-16 object-cover"}
+              onError={(e) => (e.currentTarget.style.display = "none")}
+            />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className={`rounded border px-1.5 py-0.5 text-[11px] font-bold ${acc.badge}`}>
+                {info?.position ?? "?"}
+              </span>
+              {info?.team && <span className="text-xs font-medium text-zinc-400">{info.team}</span>}
             </div>
-            <div className="text-sm font-medium text-white">
-              {profile.ownerCount} owner{profile.ownerCount !== 1 && "s"} ·{" "}
-              {profile.totalRosteredPts.toFixed(0)} pts
+            <h1 className="mt-1 truncate text-2xl font-bold text-white">{name}</h1>
+            <div className="text-xs text-zinc-500">
+              {info?.age != null && `${info.age} yrs`}
+              {info?.yearsExp != null &&
+                ` · ${info.yearsExp === 0 ? "Rookie" : `${info.yearsExp} yr exp`}`}
+              {profile && profile.ownerCount > 0 &&
+                ` · ${profile.ownerCount} owner${profile.ownerCount !== 1 ? "s" : ""} in league`}
             </div>
-            {scoringFormat && (
-              <div className="text-[11px] text-zinc-500">{scoringFormat}</div>
-            )}
+          </div>
+          {pstat && (
+            <div className="shrink-0 text-right">
+              <div className="text-3xl font-bold leading-none text-white">{pstat.mean.toFixed(1)}</div>
+              <div className="mt-1 text-[10px] uppercase tracking-wide text-zinc-500">
+                ppg{scoringFormat && ` · ${scoringFormat}`}
+              </div>
+            </div>
+          )}
+        </div>
+        {pstat && (
+          <div className="grid grid-cols-4 divide-x divide-zinc-800 border-t border-zinc-800 text-center">
+            <HeaderStat label="Games" value={`${pstat.gp}`} />
+            <HeaderStat label="Median" value={pstat.median.toFixed(1)} />
+            <HeaderStat label="Floor" value={pstat.min.toFixed(1)} />
+            <HeaderStat label="Ceiling" value={pstat.max.toFixed(1)} />
           </div>
         )}
       </div>
 
-      {/* Real production (from cached game logs, scored in this league's rules) */}
-      {pstat && <ProductionCard stat={pstat} scoringFormat={scoringFormat} />}
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-zinc-800">
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
+              active === t.key
+                ? "border-emerald-500 text-white"
+                : "border-transparent text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
 
-      {!hasData ? (
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6 text-sm text-zinc-400">
-          {pstat
-            ? "He hasn't appeared in a lineup in your league yet — the scoring above is from his real games."
-            : "No games on record for this player yet."}
-        </div>
-      ) : (
-        <>
-          {/* Timeline */}
+      {/* Overview */}
+      {active === "overview" &&
+        (pstat ? (
+          <ProductionCard stat={pstat} scoringFormat={scoringFormat} />
+        ) : (
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6 text-sm text-zinc-400">
+            No games on record for this player yet.
+          </div>
+        ))}
+
+      {/* Game Log */}
+      {active === "log" && pstat?.log && <GameLogTab log={pstat.log} />}
+
+      {/* In League */}
+      {active === "league" && hasData && (
+        <div className="space-y-4">
           <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
             <div className="mb-2 flex justify-between text-[11px] uppercase tracking-wide text-zinc-500">
-              <span>Points per game</span>
+              <span>Points per game — in your league</span>
               <span>
-                <span
-                  style={{ background: "rgba(52,211,153,0.5)" }}
-                  className="mr-1 inline-block h-2.5 w-2.5 rounded-sm align-middle"
-                />
+                <span style={{ background: "rgba(52,211,153,0.5)" }} className="mr-1 inline-block h-2.5 w-2.5 rounded-sm align-middle" />
                 started
-                <span
-                  style={{ background: "rgba(248,113,113,0.55)" }}
-                  className="ml-2 mr-1 inline-block h-2.5 w-2.5 rounded-sm align-middle"
-                />
+                <span style={{ background: "rgba(248,113,113,0.55)" }} className="ml-2 mr-1 inline-block h-2.5 w-2.5 rounded-sm align-middle" />
                 benched
               </span>
             </div>
-            <PlayerTimeline
-              timeline={profile!.timeline}
-              colorByOwner={colorByOwner}
-            />
-            {/* Ownership band */}
+            <PlayerTimeline timeline={profile!.timeline} colorByOwner={colorByOwner} />
             <div className="mt-2 flex gap-1 pl-[26px]">
               {stints.map((s) => (
                 <div
                   key={s.ownerId}
-                  style={{
-                    flexGrow: s.rosteredGames,
-                    borderColor: colorByOwner[s.ownerId],
-                  }}
+                  style={{ flexGrow: s.rosteredGames, borderColor: colorByOwner[s.ownerId] }}
                   className="min-w-0 overflow-hidden rounded-md border px-2 py-1"
                 >
-                  <span
-                    className="block truncate text-[11px] font-medium"
-                    style={{ color: colorByOwner[s.ownerId] }}
-                  >
+                  <span className="block truncate text-[11px] font-medium" style={{ color: colorByOwner[s.ownerId] }}>
                     {s.name}
                   </span>
                 </div>
               ))}
             </div>
-            {/* Season labels */}
             <div className="mt-1 flex pl-[26px] text-[11px] text-zinc-600">
               {seasonGroups.map((g, i) => (
                 <div key={i} style={{ flexGrow: g.count }} className="text-center">
@@ -206,26 +225,69 @@ export default function PlayerProfilePage() {
             </div>
           </div>
 
-          {/* Per-manager cards */}
           <div className="space-y-3">
             {stints.map((s) => (
-              <StintCard
-                key={s.ownerId}
-                stint={s}
-                color={colorByOwner[s.ownerId]}
-                players={playerMap}
-              />
+              <StintCard key={s.ownerId} stint={s} color={colorByOwner[s.ownerId]} players={playerMap} />
             ))}
           </div>
 
           <p className="text-xs text-zinc-600">
-            All points use this league&apos;s scoring. In-league pts = everything
-            he scored while rostered (started + benched). Pts benched = points
-            scored on the bench · Cost you = marginal points lost (weeks he&apos;d
-            have outscored the lineup guy he replaced). Regular season only.
+            In-league only. Pts benched = points scored on the bench · Cost you = marginal points
+            lost (weeks he&apos;d have outscored the lineup guy he replaced). Regular season only.
           </p>
-        </>
+        </div>
       )}
+    </div>
+  );
+}
+
+function posAccent(pos?: string | null): { badge: string; wash: string } {
+  switch (pos) {
+    case "QB": return { badge: "border-rose-500/40 bg-rose-500/15 text-rose-300", wash: "bg-gradient-to-r from-rose-500/10 to-transparent" };
+    case "RB": return { badge: "border-emerald-500/40 bg-emerald-500/15 text-emerald-300", wash: "bg-gradient-to-r from-emerald-500/10 to-transparent" };
+    case "WR": return { badge: "border-sky-500/40 bg-sky-500/15 text-sky-300", wash: "bg-gradient-to-r from-sky-500/10 to-transparent" };
+    case "TE": return { badge: "border-amber-500/40 bg-amber-500/15 text-amber-300", wash: "bg-gradient-to-r from-amber-500/10 to-transparent" };
+    default: return { badge: "border-zinc-600 bg-zinc-700/30 text-zinc-300", wash: "" };
+  }
+}
+
+function HeaderStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="py-2.5">
+      <div className="text-base font-bold tabular-nums text-white">{value}</div>
+      <div className="text-[10px] uppercase tracking-wide text-zinc-500">{label}</div>
+    </div>
+  );
+}
+
+// Chronological weekly points, most recent first, grouped by season.
+function GameLogTab({ log }: { log: [number, number, number][] }) {
+  const max = Math.max(1, ...log.map((x) => x[2]));
+  const rows = [...log].reverse();
+  let lastSeason: number | null = null;
+  return (
+    <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
+      {rows.map(([yy, wk, pts], i) => {
+        const header = yy !== lastSeason ? (lastSeason = yy) : null;
+        return (
+          <div key={i}>
+            {header !== null && (
+              <div className="border-t border-zinc-800 bg-zinc-950/40 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                20{yy} season
+              </div>
+            )}
+            <div className="flex items-center gap-3 border-t border-zinc-800/50 px-4 py-2">
+              <span className="w-12 shrink-0 text-xs text-zinc-500">Wk {wk}</span>
+              <div className="h-2 flex-1 overflow-hidden rounded-full bg-zinc-800">
+                <div className="h-full rounded-full bg-emerald-500/50" style={{ width: `${Math.max(2, (pts / max) * 100)}%` }} />
+              </div>
+              <span className="w-12 shrink-0 text-right text-sm font-semibold tabular-nums text-white">
+                {pts.toFixed(1)}
+              </span>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

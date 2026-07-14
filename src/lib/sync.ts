@@ -174,7 +174,7 @@ export type PlayerStat = {
   mean: number;    // average points per game
   median: number;
   min: number; q1: number; q3: number; max: number;
-  weeks: number[]; // each game's fantasy points (for the dot plot)
+  log: [number, number, number][]; // chronological [seasonYY, week, points]
 };
 
 async function computeLeaguePlayerStats(admin: Admin, chain: LeagueDetail[]): Promise<void> {
@@ -182,46 +182,49 @@ async function computeLeaguePlayerStats(admin: Admin, chain: LeagueDetail[]): Pr
   const scoring = head.scoring_settings;
   const seasons = new Set(chain.map((l) => l.season));
 
-  const [{ data: weeks }, { data: cat }] = await Promise.all([
-    admin.from("nfl_stats_weekly").select("season, payload").in("season", [...seasons]),
+  const [{ data: weekRows }, { data: cat }] = await Promise.all([
+    admin.from("nfl_stats_weekly").select("season, week, payload").in("season", [...seasons]),
     admin.from("nfl_players").select("payload").maybeSingle(),
   ]);
   const catalog = (cat?.payload ?? {}) as Record<string, { position?: string }>;
 
-  // Collect each player's weekly fantasy scores across their real games.
-  const scores = new Map<string, number[]>();
-  for (const row of weeks ?? []) {
+  // Build each player's chronological game log ([seasonYY, week, points]).
+  const rows = (weekRows ?? [])
+    .slice()
+    .sort((a, b) => String(a.season).localeCompare(String(b.season)) || a.week - b.week);
+  const logs = new Map<string, [number, number, number][]>();
+  for (const row of rows) {
     const payload = row.payload as Record<string, Record<string, number>>;
+    const yy = Number(String(row.season).slice(2));
     for (const pid in payload) {
       const raw = payload[pid];
-      if (!(raw.gp >= 1)) continue; // count only weeks the player actually played (gp present & ≥1)
-      // QBs must play a meaningful snap share, else mop-up/relief cameos (a few
-      // snaps for ~0 points) tank their floor and median.
+      if (!(raw.gp >= 1)) continue; // count only weeks the player actually played
+      // QBs must play a meaningful snap share, else mop-up/relief cameos tank the stats.
       if (catalog[pid]?.position === "QB") {
         const tm = raw.tm_off_snp ?? 0;
         if (tm > 0 && (raw.off_snp ?? 0) / tm < 0.25) continue;
       }
-      const pts = scorePlayerWeek(raw, scoring);
-      const arr = scores.get(pid) ?? [];
-      arr.push(pts);
-      scores.set(pid, arr);
+      const arr = logs.get(pid) ?? [];
+      arr.push([yy, row.week, scorePlayerWeek(raw, scoring)]);
+      logs.set(pid, arr);
     }
   }
 
   const stats: Record<string, PlayerStat> = {};
-  scores.forEach((arr, pid) => {
-    if (!arr.length) return;
-    const sorted = [...arr].sort((a, b) => a - b);
-    const mean = arr.reduce((s, x) => s + x, 0) / arr.length;
+  logs.forEach((log, pid) => {
+    if (!log.length) return;
+    const vals = log.map((x) => x[2]);
+    const sorted = [...vals].sort((a, b) => a - b);
+    const mean = vals.reduce((s, x) => s + x, 0) / vals.length;
     stats[pid] = {
-      gp: arr.length,
+      gp: vals.length,
       mean: Math.round(mean * 100) / 100,
       median: Math.round(quantile(sorted, 0.5) * 100) / 100,
       min: sorted[0],
       q1: Math.round(quantile(sorted, 0.25) * 100) / 100,
       q3: Math.round(quantile(sorted, 0.75) * 100) / 100,
       max: sorted[sorted.length - 1],
-      weeks: sorted.map((x) => Math.round(x * 10) / 10),
+      log,
     };
   });
 
