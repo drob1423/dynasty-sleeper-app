@@ -15,6 +15,7 @@ import {
   type OwnerStint,
 } from "@/lib/playerProfile";
 import { getCachedPlayerStats, type PlayerStat } from "@/lib/roomStrength";
+import { teamColor, teamLogoUrl } from "@/lib/nflTeams";
 import { PlayerTimeline } from "./PlayerTimeline";
 
 // Owner colors for the timeline + ownership band (avoids green/red, which mean
@@ -106,6 +107,7 @@ export default function PlayerProfilePage() {
   const active = tabs.some((t) => t.key === tab) ? tab : "overview";
 
   const acc = posAccent(info?.position);
+  const tc = teamColor(info?.team);
 
   return (
     <div className="space-y-4">
@@ -114,8 +116,26 @@ export default function PlayerProfilePage() {
       </button>
 
       {/* Header banner */}
-      <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
-        <div className={`flex items-center gap-4 p-5 ${acc.wash}`}>
+      <div className="relative overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
+        {/* team-color gradient */}
+        <div
+          className="absolute inset-0"
+          style={{ background: `linear-gradient(105deg, ${tc} 0%, ${tc}55 26%, transparent 62%)` }}
+        />
+        {/* big team logo watermark, darkened behind the name */}
+        {info?.team && (
+          <img
+            src={teamLogoUrl(info.team)}
+            alt=""
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-6 top-1/2 h-56 w-56 -translate-y-1/2 object-contain opacity-[0.13] brightness-75 saturate-150"
+            onError={(e) => (e.currentTarget.style.display = "none")}
+          />
+        )}
+        {/* legibility darkening */}
+        <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/70 via-zinc-900/30 to-transparent" />
+
+        <div className="relative flex items-center gap-4 p-5">
           <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-800 ring-2 ring-zinc-700">
             <img
               src={photo}
@@ -150,7 +170,7 @@ export default function PlayerProfilePage() {
           )}
         </div>
         {pstat && (
-          <div className="grid grid-cols-4 divide-x divide-zinc-800 border-t border-zinc-800 text-center">
+          <div className="relative grid grid-cols-4 divide-x divide-zinc-800 border-t border-zinc-800 bg-zinc-900/60 text-center">
             <HeaderStat label="Games" value={`${pstat.gp}`} />
             <HeaderStat label="Median" value={pstat.median.toFixed(1)} />
             <HeaderStat label="Floor" value={pstat.min.toFixed(1)} />
