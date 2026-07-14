@@ -198,11 +198,16 @@ async function computeLeaguePlayerStats(admin: Admin, chain: LeagueDetail[]): Pr
     const yy = Number(String(row.season).slice(2));
     for (const pid in payload) {
       const raw = payload[pid];
-      if (!(raw.gp >= 1)) continue; // count only weeks the player actually played
-      // QBs must play a meaningful snap share, else mop-up/relief cameos tank the stats.
-      if (catalog[pid]?.position === "QB") {
+      if (!(raw.gp >= 1)) continue; // dressed for the game
+      const ppos = catalog[pid]?.position;
+      if (ppos === "QB") {
+        // QBs must play a meaningful snap share, else mop-up/relief cameos tank the stats.
         const tm = raw.tm_off_snp ?? 0;
         if (tm > 0 && (raw.off_snp ?? 0) / tm < 0.25) continue;
+      } else if (ppos === "RB" || ppos === "WR" || ppos === "TE") {
+        // Skill players must take an offensive snap — excludes special-teams-only
+        // and inactive-but-dressed weeks (0 offensive snaps for ~0 points).
+        if ((raw.off_snp ?? 0) < 1) continue;
       }
       const arr = logs.get(pid) ?? [];
       arr.push([yy, row.week, scorePlayerWeek(raw, scoring)]);
