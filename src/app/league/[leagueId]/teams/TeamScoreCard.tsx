@@ -86,70 +86,47 @@ export function TeamScoreCard({
         </div>
       </div>
 
-      {/* Their vitals — all-time first */}
-      <div className="mt-4 grid grid-cols-4 gap-1 rounded-xl bg-zinc-950/40 py-3">
-        <BigStat label="All-Time" value={`${allW}-${allL}`} sub={winPct(allW, allL)} />
+      {/* Record hero — all-time up front, reg/playoff split alongside */}
+      <div className="mt-4 flex items-center justify-between gap-3 rounded-xl bg-zinc-950/40 px-4 py-3">
+        <div>
+          <div className="text-[10px] uppercase tracking-wide text-zinc-500">All-Time</div>
+          <div className="mt-0.5 flex items-baseline gap-2">
+            <span className="text-2xl font-bold leading-none text-white">
+              {allW}-{allL}
+            </span>
+            <span className="text-sm font-semibold text-zinc-500">{winPct(allW, allL)}</span>
+          </div>
+        </div>
+        <div className="flex gap-1.5">
+          <RecPill label="Reg" rec={`${t.dynastyW}-${t.dynastyL}`} pct={winPct(t.dynastyW, t.dynastyL)} />
+          <RecPill label="Playoffs" rec={`${t.playoffW}-${t.playoffL}`} pct={winPct(t.playoffW, t.playoffL)} />
+        </div>
+      </div>
+
+      {/* Uniform stat grid */}
+      <div className="mt-2 grid grid-cols-3 gap-y-3 rounded-xl bg-zinc-950/40 py-3">
         <BigStat label="This Year" value={`${t.currentW}-${t.currentL}`} />
         <BigStat
           label="Streak"
           value={t.streak ? `${t.streak.type}${t.streak.count}` : "—"}
-          color={
-            t.streak?.type === "W"
-              ? "text-emerald-400"
-              : t.streak?.type === "L"
-              ? "text-red-400"
-              : undefined
-          }
+          color={t.streak?.type === "W" ? "text-emerald-400" : t.streak?.type === "L" ? "text-red-400" : undefined}
         />
         <BigStat
           label="L5"
           value={t.form.length ? `${l5w}-${l5l}` : "—"}
-          color={
-            l5w > l5l
-              ? "text-emerald-400"
-              : l5l > l5w
-              ? "text-red-400"
-              : undefined
-          }
+          color={l5w > l5l ? "text-emerald-400" : l5l > l5w ? "text-red-400" : undefined}
         />
-      </div>
-
-      {/* All-time breakdown */}
-      <div className="mt-2 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[11px] text-zinc-500">
-        <span>
-          Reg season{" "}
-          <span className="font-semibold text-zinc-300">
-            {t.dynastyW}-{t.dynastyL}
-          </span>{" "}
-          <span className="text-zinc-600">{winPct(t.dynastyW, t.dynastyL)}</span>
-        </span>
-        <span className="text-zinc-700">·</span>
-        <span>
-          Playoffs{" "}
-          <span className="font-semibold text-zinc-300">
-            {t.playoffW}-{t.playoffL}
-          </span>{" "}
-          <span className="text-zinc-600">{winPct(t.playoffW, t.playoffL)}</span>
-        </span>
-      </div>
-
-      {/* Second row — quality, luck, hardware */}
-      <div className="mt-2 grid grid-cols-3 gap-1 rounded-xl bg-zinc-950/40 py-3">
         <BigStat
           label="Points For"
           value={t.pfRank ? ordinal(t.pfRank) : "—"}
           sub={t.pf != null ? `${Math.round(t.pf).toLocaleString()} pts` : undefined}
-          color={t.pfRank ? (t.pfRank <= 3 ? "text-emerald-400" : undefined) : undefined}
+          color={t.pfRank && t.pfRank <= 3 ? "text-emerald-400" : undefined}
         />
         <BigStat
           label="Luck"
           value={t.luck != null ? `${t.luck >= 0 ? "+" : ""}${t.luck.toFixed(1)}` : "—"}
           color={t.luck == null ? undefined : t.luck >= 0 ? "text-emerald-400" : "text-red-400"}
-          sub={
-            t.expWins != null && t.games != null
-              ? `exp ${Math.round(t.expWins)}-${Math.round(t.games - t.expWins)}`
-              : undefined
-          }
+          sub={t.expWins != null && t.games != null ? `exp ${Math.round(t.expWins)}-${Math.round(t.games - t.expWins)}` : undefined}
         />
         <BigStat
           label="Titles"
@@ -249,6 +226,16 @@ function H2HStrip({ rec }: { rec: H2HRecord | null }) {
         {line("reg", rec.regW, rec.regL, rec.regT, regGames, rec.myPtsFor, rec.oppPtsFor)}
         {line("po", rec.poW, rec.poL, rec.poT, poGames, rec.myPtsForPO, rec.oppPtsForPO)}
       </div>
+    </div>
+  );
+}
+
+function RecPill({ label, rec, pct }: { label: string; rec: string; pct: string }) {
+  return (
+    <div className="rounded-lg bg-zinc-900 px-2.5 py-1 text-center">
+      <div className="text-[9px] uppercase tracking-wide text-zinc-600">{label}</div>
+      <div className="text-xs font-semibold text-zinc-200">{rec}</div>
+      <div className="text-[9px] text-zinc-500">{pct}</div>
     </div>
   );
 }
