@@ -16,7 +16,7 @@ const TABS: { label: string; segment: string }[] = [
   { label: "Matchups", segment: "matchups" },
   { label: "Trade Central", segment: "trades" },
   { label: "History", segment: "history" },
-  { label: "Insights", segment: "insights" },
+  { label: "Room Ranks", segment: "insights" },
   { label: "Commissioner", segment: "commish" },
 ];
 
