@@ -37,6 +37,7 @@ export default function PlayerProfilePage() {
   const [info, setInfo] = useState<PlayerInfo | null>(null);
   const [profile, setProfile] = useState<PlayerProfile | null>(null);
   const [scoringFormat, setScoringFormat] = useState<string>("");
+  const [playerMap, setPlayerMap] = useState<Record<string, PlayerInfo>>({});
 
   useEffect(() => {
     async function load() {
@@ -50,6 +51,7 @@ export default function PlayerProfilePage() {
         getPlayerMap(),
       ]);
       setScoringFormat(chain[0]?.scoringFormat ?? "");
+      setPlayerMap(players);
       const pInfo = players[playerId] ?? null;
       setInfo(pInfo);
       const prof = await getPlayerProfile(
@@ -201,6 +203,7 @@ export default function PlayerProfilePage() {
                 key={s.ownerId}
                 stint={s}
                 color={colorByOwner[s.ownerId]}
+                players={playerMap}
               />
             ))}
           </div>
@@ -217,8 +220,17 @@ export default function PlayerProfilePage() {
   );
 }
 
-function StintCard({ stint, color }: { stint: OwnerStint; color: string }) {
+function StintCard({
+  stint,
+  color,
+  players,
+}: {
+  stint: OwnerStint;
+  color: string;
+  players: Record<string, PlayerInfo>;
+}) {
   const s = stint;
+  const [showSits, setShowSits] = useState(false);
   return (
     <div
       className="rounded-2xl border bg-zinc-900 p-4"
@@ -270,8 +282,10 @@ function StintCard({ stint, color }: { stint: OwnerStint; color: string }) {
         <Stat label="Pts benched" value={s.rawBenchPts.toFixed(0)} />
         <Stat
           label="Cost you"
-          value={s.marginalBenchPts.toFixed(0)}
-          color={s.marginalBenchPts >= 20 ? "text-red-400" : "text-white"}
+          value={
+            s.marginalBenchPts > 0 ? `-${s.marginalBenchPts.toFixed(0)}` : "0"
+          }
+          color={s.marginalBenchPts > 0 ? "text-red-400" : "text-white"}
           sub={
             s.shouldHaveStarted > 0
               ? `${s.shouldHaveStarted} bad sit${s.shouldHaveStarted !== 1 ? "s" : ""}`
@@ -279,6 +293,46 @@ function StintCard({ stint, color }: { stint: OwnerStint; color: string }) {
           }
         />
       </div>
+
+      {s.badSits.length > 0 && (
+        <div className="mt-3">
+          <button
+            onClick={() => setShowSits((v) => !v)}
+            className="text-xs font-medium text-red-400 hover:text-red-300"
+          >
+            {showSits ? "Hide" : "Show"} the {s.badSits.length} bad sit
+            {s.badSits.length !== 1 ? "s" : ""}
+          </button>
+          {showSits && (
+            <div className="mt-2 space-y-1.5">
+              {s.badSits
+                .slice()
+                .sort((a, b) => b.gain - a.gain)
+                .map((b, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between rounded-lg bg-zinc-950/60 px-3 py-2 text-xs"
+                  >
+                    <span className="text-zinc-400">
+                      <span className="text-zinc-300">
+                        Wk {b.week} &rsquo;{b.seasonLabel.slice(2)}
+                      </span>{" "}
+                      — started{" "}
+                      <span className="text-zinc-300">
+                        {b.replacedId ? players[b.replacedId]?.name ?? "a starter" : "a starter"}
+                      </span>{" "}
+                      ({b.replacedPts.toFixed(1)}) over him (
+                      {b.playerPts.toFixed(1)})
+                    </span>
+                    <span className="ml-2 shrink-0 font-semibold text-red-400">
+                      -{b.gain.toFixed(1)}
+                    </span>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

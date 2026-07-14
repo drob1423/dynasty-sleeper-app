@@ -37,6 +37,18 @@ export type OwnerStint = {
   rawBenchPts: number;
   marginalBenchPts: number;
   shouldHaveStarted: number; // # benched weeks where starting him would've helped
+  badSits: BadSit[]; // the specific weeks it cost points
+};
+
+// A week where benching the player actually cost points: he outscored the
+// lineup guy he would've replaced.
+export type BadSit = {
+  seasonLabel: string;
+  week: number;
+  playerPts: number; // what the benched player scored
+  replacedId: string | null; // the starter he'd have replaced (worst eligible)
+  replacedPts: number;
+  gain: number; // points the swap would have added
 };
 
 export type TimelinePoint = {
@@ -69,25 +81,37 @@ function slotEligible(fpos: string[], slot: string): boolean {
 }
 
 // Marginal points for one benched week: how much better the benched player was
-// than the worst eligible starter he could have replaced (0 if none).
+// than the WORST eligible starter he could have replaced (0 if none), plus who
+// that starter was.
 function marginalForWeek(
   rosterPositions: string[],
   starters: string[],
   playersPoints: Record<string, number>,
   benchedPts: number,
   fpos: string[]
-): number {
-  const eligible: number[] = [];
+): { gain: number; replacedId: string | null; replacedPts: number } {
+  let worstId: string | null = null;
+  let worstPts = Infinity;
   for (let k = 0; k < starters.length; k++) {
     const slot = (rosterPositions[k] || "").toUpperCase();
     if (!slot || slot === "BN" || slot === "IR" || slot === "TAXI") continue;
     if (slotEligible(fpos, slot)) {
       const sp = starters[k];
-      if (sp && sp !== "0") eligible.push(playersPoints[sp] ?? 0);
+      if (sp && sp !== "0") {
+        const pts = playersPoints[sp] ?? 0;
+        if (pts < worstPts) {
+          worstPts = pts;
+          worstId = sp;
+        }
+      }
     }
   }
-  if (eligible.length === 0) return 0;
-  return Math.max(0, benchedPts - Math.min(...eligible));
+  if (worstId === null) return { gain: 0, replacedId: null, replacedPts: 0 };
+  return {
+    gain: Math.max(0, benchedPts - worstPts),
+    replacedId: worstId,
+    replacedPts: worstPts,
+  };
 }
 
 type Acc = {
@@ -99,6 +123,7 @@ type Acc = {
   rawBench: number;
   marginal: number;
   shouldStart: number;
+  badSits: BadSit[];
   firstOrder: number | null;
   firstLabel: string;
   lastLabel: string;
@@ -135,6 +160,7 @@ export async function getPlayerProfile(
         rawBench: 0,
         marginal: 0,
         shouldStart: 0,
+        badSits: [],
         firstOrder: null,
         firstLabel: "",
         lastLabel: "",
@@ -274,8 +300,18 @@ export async function getPlayerProfile(
             pts,
             fantasyPositions
           );
-          a.marginal += m;
-          if (m > 0) a.shouldStart += 1;
+          a.marginal += m.gain;
+          if (m.gain > 0) {
+            a.shouldStart += 1;
+            a.badSits.push({
+              seasonLabel: season.season,
+              week,
+              playerPts: pts,
+              replacedId: m.replacedId,
+              replacedPts: m.replacedPts,
+              gain: m.gain,
+            });
+          }
         }
       }
     });
@@ -337,6 +373,7 @@ export async function getPlayerProfile(
       rawBenchPts: a.rawBench,
       marginalBenchPts: a.marginal,
       shouldHaveStarted: a.shouldStart,
+      badSits: a.badSits,
     });
   });
   stints.sort(
