@@ -75,7 +75,7 @@ export async function getRosterInsights(
   // the player selected (keyed by season-round-originalRoster).
   const draftPickLookup = new Map<
     string,
-    { slot: number; playerId: string | null }
+    { slot: number; playerId: string | null; pickedBy: string | null }
   >();
   // Include every season in the chain (even the upcoming pre-draft one, whose
   // ORDER is set even though no picks are made yet).
@@ -103,6 +103,7 @@ export async function getRosterInsights(
                 {
                   slot: pk.draft_slot ?? pk.pick_no ?? 0,
                   playerId: pk.player_id ?? null,
+                  pickedBy: pk.picked_by ?? null,
                 }
               );
             }
@@ -133,6 +134,7 @@ export async function getRosterInsights(
               draftPickLookup.set(`${season.season}-${round}-${r.roster_id}`, {
                 slot,
                 playerId: null,
+                pickedBy: null,
               });
             }
           }
@@ -337,7 +339,10 @@ function buildTrade(
   ownerByRoster: Map<number, string | null>,
   handleByOwner: Map<string, string>,
   playerMap: Record<string, PlayerInfo>,
-  draftPickLookup: Map<string, { slot: number; playerId: string | null }>
+  draftPickLookup: Map<
+    string,
+    { slot: number; playerId: string | null; pickedBy: string | null }
+  >
 ): TradeDetail {
   const sides: TradeSide[] = [];
   const rosterIds = t.roster_ids ?? [];
@@ -353,19 +358,24 @@ function buildTrade(
     for (const pk of t.draft_picks ?? []) {
       if (pk.owner_id !== rid) continue;
       const yy = pk.season.slice(2);
-      const resolved = draftPickLookup.get(
+      const slot = draftPickLookup.get(
         `${pk.season}-${pk.round}-${pk.roster_id}`
       );
-      if (resolved?.playerId) {
-        const name = playerMap[resolved.playerId]?.name ?? "pick";
+      const slotStr = slot
+        ? `R${pk.round}.${String(slot.slot).padStart(2, "0")}`
+        : `R${pk.round}`;
+      // Whoever RECEIVED this pick in the trade:
+      const receiverUser = ownerByRoster.get(rid) ?? null;
+      if (slot?.playerId && slot.pickedBy === receiverUser) {
+        // The receiver kept it and drafted the player.
         received.push(
-          `'${yy} R${pk.round}.${String(resolved.slot).padStart(2, "0")} → ${name}`
+          `'${yy} ${slotStr} → ${playerMap[slot.playerId]?.name ?? "pick"}`
         );
-      } else if (resolved) {
-        // Slot known (order set) but not drafted yet.
-        received.push(
-          `'${yy} R${pk.round}.${String(resolved.slot).padStart(2, "0")} (TBD)`
-        );
+      } else if (slot?.playerId) {
+        // Drafted, but by someone else — receiver flipped this pick later.
+        received.push(`'${yy} ${slotStr} pick`);
+      } else if (slot) {
+        received.push(`'${yy} ${slotStr} (TBD)`); // order set, not drafted yet
       } else {
         received.push(`'${yy} R${pk.round} pick`);
       }
