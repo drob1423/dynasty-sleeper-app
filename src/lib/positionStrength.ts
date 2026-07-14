@@ -2,11 +2,12 @@
 // League positional strength — rank every team's position group (QB/RB/WR/TE)
 // against each other. "Who has the strongest QB room? The weakest RB depth?"
 //
-// Metric: every rostered player at a position is ranked league-wide by PPG
-// (points per game they scored in) — tenure-neutral, so a rookie compares
-// fairly to a veteran. A team's room is then scored by the AVERAGE positional
-// rank of its players (lower = stronger). This measures quality of the room,
-// not quantity — hoarding replaceable bodies doesn't inflate a team.
+// Metric: every player's league-wide PPG (points per game they scored in) —
+// tenure-neutral, so a rookie compares fairly to a veteran. A team's room is
+// scored by the SUM of the PPG of just its startable core — the top-N players
+// that would actually fill the lineup (N from the league's starting slots).
+// This weights by production (elite studs dominate), caps depth (hoarding
+// replaceable bodies doesn't help), and doesn't penalize a deep bench.
 // ---------------------------------------------------------------------------
 
 import {
@@ -42,6 +43,7 @@ export type RoomPlayer = {
   ppg: number;
   games: number;
   posRank: number; // league-wide positional rank (1 = best)
+  isStarter: boolean; // counts toward the room score (top-N)
 };
 
 export type TeamRoom = {
@@ -50,15 +52,17 @@ export type TeamRoom = {
   teamName: string;
   logo: string | null;
   isMe: boolean;
-  avgRank: number | null; // average positional rank of the room (lower = better)
+  score: number; // Σ PPG of the startable core (higher = stronger)
   rank: number; // team's rank among the league for this position
-  players: RoomPlayer[]; // ranked contributors, best first
+  starters: number; // how many players counted toward the score (N)
+  players: RoomPlayer[]; // ranked contributors, best first; starters flagged
 };
 
 export type PositionStrength = {
   position: RankedPosition;
   teams: TeamRoom[]; // ranked, strongest first
-  pool: number; // # of ranked players at this position (for bar scaling)
+  starters: number; // # of players that count toward the score (N)
+  leagueMax: number; // best score in the league (for bar scaling)
 };
 
 export async function getPositionStrength(
@@ -112,9 +116,37 @@ export async function getPositionStrength(
     currentRosters.map((r) => [r.roster_id, r.players ?? []])
   );
 
+  // Starting-lineup slots drive N (how many players count per room). Derived
+  // from the league's roster_positions so it adapts to any format.
+  const slots = chain[0]?.rosterPositions ?? [];
+  const count = (p: string) => slots.filter((s) => s === p).length;
+  const flexSlots =
+    count("FLEX") + count("WRRB_FLEX") + count("REC_FLEX") + count("WRRB_WRT");
+  const nFor = (key: RankedPosition): number => {
+    switch (key) {
+      case "QB":
+        return Math.max(1, count("QB"));
+      // Single positions: dedicated slots + one, so a startable backup counts.
+      case "RB":
+        return Math.max(1, count("RB")) + 1;
+      case "WR":
+        return Math.max(1, count("WR")) + 1;
+      case "TE":
+        return Math.max(1, count("TE")) + 1;
+      // Flex = the whole skill-position starting lineup.
+      case "FLEX":
+        return Math.max(
+          1,
+          count("RB") + count("WR") + count("TE") + flexSlots
+        );
+    }
+  };
+
   const result: PositionStrength[] = RANKED_GROUPS.map((group) => {
     const position = group.key;
     const eligible = new Set<string>(group.positions);
+    const N = nFor(position);
+
     // Rank every qualifying rostered player in this group, league-wide.
     const ranked = currentRosters
       .flatMap((r) => r.players ?? [])
@@ -127,7 +159,6 @@ export async function getPositionStrength(
       .sort((a, b) => b.ppg - a.ppg);
     const posRankOf = new Map<string, number>();
     ranked.forEach((x, i) => posRankOf.set(x.pid, i + 1));
-    const pool = ranked.length;
 
     const teams: TeamRoom[] = currentRosters.map((r) => {
       const u = r.owner_id ? byId.get(r.owner_id) : undefined;
@@ -140,31 +171,31 @@ export async function getPositionStrength(
           ppg: ppgOf(pid),
           games: games.get(pid) ?? 0,
           posRank: posRankOf.get(pid)!,
+          isStarter: false,
         }))
-        .sort((a, b) => a.posRank - b.posRank);
-      const avgRank =
-        players.length > 0
-          ? players.reduce((s, p) => s + p.posRank, 0) / players.length
-          : null;
+        .sort((a, b) => b.ppg - a.ppg);
+      // The top-N producers are the startable core that scores the room.
+      players.forEach((p, i) => (p.isStarter = i < N));
+      const core = players.slice(0, N);
+      const score = core.reduce((s, p) => s + p.ppg, 0);
       return {
         rosterId: r.roster_id,
         handle: u?.display_name || "unknown",
         teamName: u?.team_name || u?.display_name || "Unknown",
         logo: u?.teamAvatar ?? null,
         isMe: !!myUserId && r.owner_id === myUserId,
-        avgRank,
+        score,
         rank: 0,
+        starters: core.length,
         players,
       };
     });
 
-    // Sort by average rank (lower = stronger); teams with no qualifying player
-    // sink to the bottom.
-    teams.sort(
-      (a, b) => (a.avgRank ?? Infinity) - (b.avgRank ?? Infinity)
-    );
+    // Sort by startable firepower (higher = stronger).
+    teams.sort((a, b) => b.score - a.score);
     teams.forEach((t, i) => (t.rank = i + 1));
-    return { position, teams, pool };
+    const leagueMax = teams.length ? teams[0].score : 0;
+    return { position, teams, starters: N, leagueMax };
   });
 
   return result;

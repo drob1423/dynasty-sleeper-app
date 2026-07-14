@@ -68,8 +68,8 @@ export default function InsightsTab() {
       <div>
         <h2 className="text-lg font-semibold text-white">Positional Strength</h2>
         <p className="mt-1 text-sm text-zinc-400">
-          Every team&rsquo;s position group ranked by the average league
-          position rank of its players. Quality of the room, not quantity.
+          Every team&rsquo;s position group ranked by the scoring of its
+          startable core — the players that actually fill the lineup.
         </p>
       </div>
 
@@ -84,9 +84,10 @@ export default function InsightsTab() {
       ))}
 
       <p className="pt-1 text-xs text-zinc-600">
-        Each rostered {`{QB,RB,WR,TE}`} with 3+ scoring games is ranked
-        league-wide by PPG; a team&rsquo;s score is its players&rsquo; average
-        rank (lower = better). Tenure-neutral, so rookies compare fairly.
+        Score = Σ PPG of a team&rsquo;s top starters at the position (N from the
+        league&rsquo;s lineup slots); Flex spans the full RB/WR/TE starting
+        lineup. Only players with 3+ scoring games count. Tenure-neutral, so
+        rookies compare fairly and hoarding depth doesn&rsquo;t inflate a team.
       </p>
     </div>
   );
@@ -109,10 +110,12 @@ function PositionCard({
       <div className="flex items-baseline justify-between border-b border-zinc-800 px-4 py-3">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-300">
           {POS_LABEL[pos.position] ?? pos.position}
-          <span className="ml-1.5 text-zinc-600">rooms</span>
+          <span className="ml-1.5 text-zinc-600">
+            · top {pos.starters}
+          </span>
         </h3>
         <span className="text-[10px] uppercase tracking-wide text-zinc-600">
-          Avg rank
+          Σ PPG
         </span>
       </div>
       <div>
@@ -122,7 +125,7 @@ function PositionCard({
             t={t}
             rank={i + 1}
             total={n}
-            pool={pos.pool}
+            max={pos.leagueMax}
             leagueId={leagueId}
             expanded={open.has(`${pos.position}-${t.rosterId}`)}
             onToggle={() => toggle(`${pos.position}-${t.rosterId}`)}
@@ -137,7 +140,7 @@ function RoomRow({
   t,
   rank,
   total,
-  pool,
+  max,
   leagueId,
   expanded,
   onToggle,
@@ -145,16 +148,13 @@ function RoomRow({
   t: TeamRoom;
   rank: number;
   total: number;
-  pool: number;
+  max: number;
   leagueId: string;
   expanded: boolean;
   onToggle: () => void;
 }) {
-  // Fuller bar = better (lower average rank). Scale against the position pool.
-  const pct =
-    t.avgRank != null && pool > 0
-      ? Math.max(2, ((pool - t.avgRank + 1) / pool) * 100)
-      : 0;
+  // Fuller bar = stronger core. Scale against the league's best room.
+  const pct = max > 0 ? Math.max(2, (t.score / max) * 100) : 0;
   // Strength tier by rank: top third green, bottom third red, middle neutral.
   const third = Math.ceil(total / 3);
   const tier =
@@ -202,11 +202,6 @@ function RoomRow({
             <span className="truncate text-sm font-medium text-white">
               {t.handle}
             </span>
-            {t.isMe && (
-              <span className="shrink-0 rounded-full border border-sky-800 bg-sky-950/50 px-1.5 py-px text-[9px] uppercase tracking-wide text-sky-400">
-                You
-              </span>
-            )}
             {rank === 1 && (
               <span className="shrink-0 rounded-full border border-emerald-900 bg-emerald-950/50 px-1.5 py-px text-[9px] uppercase tracking-wide text-emerald-400">
                 Deepest
@@ -227,7 +222,7 @@ function RoomRow({
         </div>
         <div className="shrink-0 text-right">
           <div className={`text-sm font-bold tabular-nums ${scoreColor}`}>
-            {t.avgRank != null ? t.avgRank.toFixed(1) : "—"}
+            {t.score > 0 ? t.score.toFixed(1) : "—"}
           </div>
           <div className="text-[10px] text-zinc-600">
             {t.players.length} {t.players.length === 1 ? "player" : "players"}
@@ -244,10 +239,18 @@ function RoomRow({
               <Link
                 key={p.id}
                 href={`/league/${leagueId}/player/${p.id}`}
-                className="flex items-center justify-between gap-2 rounded-lg px-2 py-1 text-xs hover:bg-zinc-800/50"
+                className={`flex items-center justify-between gap-2 rounded-lg px-2 py-1 text-xs hover:bg-zinc-800/50 ${
+                  p.isStarter ? "" : "opacity-45"
+                }`}
               >
                 <span className="flex min-w-0 items-center gap-2">
-                  <span className="w-6 shrink-0 rounded bg-zinc-800 py-0.5 text-center text-[10px] font-semibold tabular-nums text-zinc-400">
+                  <span
+                    className={`w-6 shrink-0 rounded py-0.5 text-center text-[10px] font-semibold tabular-nums ${
+                      p.isStarter
+                        ? "bg-emerald-950/60 text-emerald-400"
+                        : "bg-zinc-800 text-zinc-500"
+                    }`}
+                  >
                     {p.posRank}
                   </span>
                   <span className="truncate text-zinc-300">
