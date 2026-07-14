@@ -123,9 +123,6 @@ function Legend() {
       </div>
       <div className="flex flex-wrap gap-x-6 gap-y-2 text-[11px] text-zinc-400">
         <span className="flex items-center gap-1.5">
-          <span className="h-2 w-2 shrink-0 rounded-full bg-zinc-300/60" /> a dot = one game
-        </span>
-        <span className="flex items-center gap-1.5">
           <span className="h-3 w-5 shrink-0 rounded border border-emerald-800 bg-emerald-500/25" /> box = his
           middle 50% of weeks
         </span>
@@ -299,11 +296,6 @@ function AxisRuler({ scaleMax }: { scaleMax: number }) {
   );
 }
 
-// deterministic vertical jitter for the dots (no Math.random)
-function jitter(i: number) {
-  return (((i * 97) % 13) / 13 - 0.5) * 20; // px, ±10
-}
-
 function PlayerRow({ p, scaleMax, leagueId }: { p: RoomPlayer; scaleMax: number; leagueId: string }) {
   const pct = (v: number) => `${Math.max(0, Math.min(100, (v / scaleMax) * 100))}%`;
   const small = p.gp < 4;
@@ -342,14 +334,6 @@ function PlayerRow({ p, scaleMax, leagueId }: { p: RoomPlayer; scaleMax: number;
           }`}
           style={{ left: pct(p.q1), width: `calc(${pct(p.q3)} - ${pct(p.q1)})` }}
         />
-        {/* individual games */}
-        {(p.weeks ?? []).map((v, i) => (
-          <div
-            key={i}
-            className="absolute h-[5px] w-[5px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-zinc-200/50"
-            style={{ left: pct(v), top: `calc(50% + ${jitter(i)}px)` }}
-          />
-        ))}
         {/* median */}
         <div className="absolute top-1/2 h-6 w-0.5 -translate-y-1/2 bg-zinc-100" style={{ left: pct(p.median) }} title={`median ${p.median}`} />
         {/* mean */}
