@@ -57,7 +57,8 @@ export async function getRosterInsights(
   const rosterSet = new Set(rosterPlayers);
 
   // Accumulators
-  const totalPtsAll = new Map<string, number>(); // every player's total pts (for rank)
+  const totalPtsAll = new Map<string, number>(); // every player's total pts (league-wide)
+  const gamesAll = new Map<string, number>(); // weeks each player appeared (for PPG rank)
   const usage = new Map<string, { rostered: number; started: number; pts: number }>();
   const zeroWeeks = new Map<string, Set<number>>(); // playerId -> weeks scored 0 while on owner's roster (season-scoped below)
   const acqEvents = new Map<
@@ -184,6 +185,11 @@ export async function getRosterInsights(
         const pp: Record<string, number> = m.players_points ?? {};
         for (const pid in pp) {
           totalPtsAll.set(pid, (totalPtsAll.get(pid) ?? 0) + (pp[pid] || 0));
+          // Count a game only when the player actually produced (>0), so byes
+          // and inactive weeks don't dilute the per-game rate.
+          if ((pp[pid] || 0) > 0) {
+            gamesAll.set(pid, (gamesAll.get(pid) ?? 0) + 1);
+          }
         }
         if (ownerRosterId != null && m.roster_id === ownerRosterId) {
           const st = new Set<string>(m.starters ?? []);
@@ -296,20 +302,32 @@ export async function getRosterInsights(
     });
   });
 
-  // Positional rank among currently-rostered players (by total points).
-  const byPos = new Map<string, { pid: string; pts: number }[]>();
+  // Positional rank among currently-rostered players, by PER-GAME scoring
+  // (PPG). Ranking on cumulative points would penalize newer players (e.g. a
+  // rookie who missed prior seasons) against multi-year veterans; a per-game
+  // rate is tenure-neutral. Players with too few games to be meaningful are
+  // ranked but sorted after those who cleared the floor.
+  const PPG_MIN_GAMES = 4;
+  const byPos = new Map<string, { pid: string; ppg: number; games: number }[]>();
   const allRostered = new Set<string>();
   currentRosters.forEach((r) => (r.players ?? []).forEach((p) => allRostered.add(p)));
   allRostered.forEach((pid) => {
     const pos = playerMap[pid]?.position;
     if (!pos) return;
+    const games = gamesAll.get(pid) ?? 0;
+    const ppg = games > 0 ? (totalPtsAll.get(pid) ?? 0) / games : 0;
     const arr = byPos.get(pos) ?? [];
-    arr.push({ pid, pts: totalPtsAll.get(pid) ?? 0 });
+    arr.push({ pid, ppg, games });
     byPos.set(pos, arr);
   });
   const rankByPlayer = new Map<string, { rank: number; pool: number }>();
   byPos.forEach((arr) => {
-    arr.sort((a, b) => b.pts - a.pts);
+    arr.sort((a, b) => {
+      const aOk = a.games >= PPG_MIN_GAMES;
+      const bOk = b.games >= PPG_MIN_GAMES;
+      if (aOk !== bOk) return aOk ? -1 : 1; // qualified players rank ahead
+      return b.ppg - a.ppg;
+    });
     arr.forEach((x, i) => rankByPlayer.set(x.pid, { rank: i + 1, pool: arr.length }));
   });
 
