@@ -136,11 +136,11 @@ export default function PlayerProfilePage() {
         <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/70 via-zinc-900/30 to-transparent" />
 
         <div className="relative flex items-center gap-4 p-5">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-800 ring-2 ring-zinc-700">
+          <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-800 ring-2 ring-zinc-700">
             <img
               src={photo}
               alt=""
-              className={isDef ? "h-10 w-10 object-contain" : "h-16 w-16 object-cover"}
+              className={isDef ? "h-14 w-14 object-contain" : "h-24 w-24 object-cover"}
               onError={(e) => (e.currentTarget.style.display = "none")}
             />
           </div>
