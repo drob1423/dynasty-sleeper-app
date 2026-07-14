@@ -14,6 +14,15 @@ import { scorePlayerWeek, type ScoringSettings } from "./scoring";
 const BASE = "https://api.sleeper.app/v1";
 const STATS_WEEKS = 18; // NFL regular-season weeks
 
+// Counting stats we keep per game (a real stat sheet). Stored sparsely
+// (only non-zero) to stay compact.
+const STAT_KEYS = [
+  "pass_cmp", "pass_att", "pass_yd", "pass_td", "pass_int",
+  "rush_att", "rush_yd", "rush_td",
+  "rec", "rec_tgt", "rec_yd", "rec_td",
+  "fum_lost", "off_snp", "tm_off_snp",
+];
+
 // Resilient fetch: short timeout + a couple retries, so a Sleeper hiccup
 // doesn't abort a whole sync.
 async function sfetch(path: string, tries = 3): Promise<unknown> {
@@ -66,6 +75,19 @@ function maxWeekFor(l: LeagueDetail): number {
 
 type Admin = ReturnType<typeof getAdminClient>;
 
+// Did the player actually play an offensive down this week? (league-independent)
+// QB: 25%+ of team snaps (filters mop-up); skill: an offensive snap (filters
+// special-teams-only / inactive-dressed); all: dressed for the game.
+function playedRealGame(raw: Record<string, number>, pos?: string): boolean {
+  if (!(raw.gp >= 1)) return false;
+  if (pos === "QB") {
+    const tm = raw.tm_off_snp ?? 0;
+    return !(tm > 0 && (raw.off_snp ?? 0) / tm < 0.25);
+  }
+  if (pos === "RB" || pos === "WR" || pos === "TE") return (raw.off_snp ?? 0) >= 1;
+  return true;
+}
+
 // --- Shared: NFL player catalog (one row for the whole app) ----------------
 async function syncPlayerCatalog(admin: Admin): Promise<void> {
   const all = (await sfetch(`/players/nfl`)) as Record<string, Record<string, unknown>> | null;
@@ -104,6 +126,48 @@ async function syncWeeklyStats(admin: Admin, chain: LeagueDetail[]): Promise<voi
         });
       }
     }
+  }
+}
+
+// --- Shared: per-player raw game-log index (all of football, one copy) ------
+// Raw counting stats per game, league-independent. Each league scores these
+// with its own rules at read time — so one store serves every league.
+async function syncPlayerGamelogs(admin: Admin): Promise<void> {
+  const [{ data: weekRows }, { data: cat }] = await Promise.all([
+    admin.from("nfl_stats_weekly").select("season, week, payload"),
+    admin.from("nfl_players").select("payload").maybeSingle(),
+  ]);
+  const catalog = (cat?.payload ?? {}) as Record<string, { position?: string }>;
+  const rows = (weekRows ?? [])
+    .slice()
+    .sort((a, b) => String(a.season).localeCompare(String(b.season)) || a.week - b.week);
+
+  const logs = new Map<string, { s: number; w: number; st: Record<string, number> }[]>();
+  for (const row of rows) {
+    const payload = row.payload as Record<string, Record<string, number>>;
+    const yy = Number(String(row.season).slice(2));
+    for (const pid in payload) {
+      const raw = payload[pid];
+      if (!playedRealGame(raw, catalog[pid]?.position)) continue;
+      const st: Record<string, number> = {};
+      for (const k of STAT_KEYS) {
+        const v = raw[k];
+        if (v) st[k] = v;
+      }
+      const arr = logs.get(pid) ?? [];
+      arr.push({ s: yy, w: row.week, st });
+      logs.set(pid, arr);
+    }
+  }
+
+  const nowIso = new Date().toISOString();
+  const out = [...logs.entries()].map(([pid, games]) => ({
+    player_id: pid,
+    games,
+    updated_at: nowIso,
+  }));
+  for (let i = 0; i < out.length; i += 500) {
+    await admin.from("player_gamelogs").upsert(out.slice(i, i + 500));
   }
 }
 
@@ -198,17 +262,7 @@ async function computeLeaguePlayerStats(admin: Admin, chain: LeagueDetail[]): Pr
     const yy = Number(String(row.season).slice(2));
     for (const pid in payload) {
       const raw = payload[pid];
-      if (!(raw.gp >= 1)) continue; // dressed for the game
-      const ppos = catalog[pid]?.position;
-      if (ppos === "QB") {
-        // QBs must play a meaningful snap share, else mop-up/relief cameos tank the stats.
-        const tm = raw.tm_off_snp ?? 0;
-        if (tm > 0 && (raw.off_snp ?? 0) / tm < 0.25) continue;
-      } else if (ppos === "RB" || ppos === "WR" || ppos === "TE") {
-        // Skill players must take an offensive snap — excludes special-teams-only
-        // and inactive-but-dressed weeks (0 offensive snaps for ~0 points).
-        if ((raw.off_snp ?? 0) < 1) continue;
-      }
+      if (!playedRealGame(raw, catalog[pid]?.position)) continue;
       const arr = logs.get(pid) ?? [];
       arr.push([yy, row.week, scorePlayerWeek(raw, scoring)]);
       logs.set(pid, arr);
@@ -252,6 +306,7 @@ export async function syncLeague(leagueId: string): Promise<{ ok: boolean; detai
 
     await syncPlayerCatalog(admin);
     await syncWeeklyStats(admin, chain);
+    await syncPlayerGamelogs(admin); // shared raw stat lines for all players
     await syncLeagueChain(admin, chain);
     await computeLeaguePlayerStats(admin, chain);
 
