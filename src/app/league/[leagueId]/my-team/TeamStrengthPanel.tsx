@@ -75,7 +75,7 @@ export function TeamStrengthPanel({ leagueId }: { leagueId: string }) {
   const bnVals = rows.map((r) => strength(r.bn, r.total));
 
   return (
-    <div className="mt-4 rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-3 pb-3 pt-2.5">
+    <div className="flex h-full flex-col justify-center rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-3 pb-3 pt-2.5">
       <div className="mb-1 flex items-center justify-between">
         <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
           Positional strength

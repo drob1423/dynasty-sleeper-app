@@ -86,8 +86,11 @@ export function TeamScoreCard({
         </div>
       </div>
 
+      {/* Stats + radar side by side on wide screens */}
+      <div className="mt-4 flex flex-col gap-2 md:flex-row md:items-stretch md:gap-3">
+      <div className="flex flex-1 flex-col gap-2">
       {/* Record hero — all-time up front, reg/playoff split alongside */}
-      <div className="mt-4 flex items-center justify-between gap-3 rounded-xl bg-zinc-950/40 px-4 py-3">
+      <div className="flex items-center justify-between gap-3 rounded-xl bg-zinc-950/40 px-4 py-3">
         <div>
           <div className="text-[10px] uppercase tracking-wide text-zinc-500">All-Time</div>
           <div className="mt-0.5 flex items-baseline gap-2">
@@ -104,7 +107,7 @@ export function TeamScoreCard({
       </div>
 
       {/* Uniform stat grid */}
-      <div className="mt-2 grid grid-cols-3 gap-y-3 rounded-xl bg-zinc-950/40 py-3">
+      <div className="grid flex-1 grid-cols-3 content-center gap-y-3 rounded-xl bg-zinc-950/40 py-3">
         <BigStat label="This Year" value={`${t.currentW}-${t.currentL}`} />
         <BigStat
           label="Streak"
@@ -136,8 +139,10 @@ export function TeamScoreCard({
         />
       </div>
 
-      {/* Optional inline section (e.g. positional strength on My Team) */}
-      {extra}
+      </div>
+      {/* Positional strength radar (My Team) — beside the stats */}
+      {extra && <div className="shrink-0 md:w-[300px]">{extra}</div>}
+      </div>
 
       {/* Your head-to-head vs this team (hidden on your own card) */}
       <H2HStrip rec={t.h2h} />
