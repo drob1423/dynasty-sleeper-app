@@ -117,22 +117,29 @@ export default function InsightsTab() {
 // One-time explainer for the box-and-whisker marks.
 function Legend() {
   return (
-    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-zinc-800 bg-zinc-900/60 px-4 py-2.5 text-[11px] text-zinc-400">
-      <span className="flex items-center gap-1.5">
-        <span className="h-2 w-2 rounded-full bg-zinc-300/60" /> each game
-      </span>
-      <span className="flex items-center gap-1.5">
-        <span className="h-3 w-5 rounded border border-emerald-800 bg-emerald-500/25" /> middle 50%
-      </span>
-      <span className="flex items-center gap-1.5">
-        <span className="h-3.5 w-0.5 bg-zinc-100" /> median (typical week)
-      </span>
-      <span className="flex items-center gap-1.5">
-        <span className="h-2 w-2 rotate-45 border border-white bg-zinc-900" /> average
-      </span>
-      <span className="flex items-center gap-1.5">
-        <span className="h-px w-5 bg-zinc-500" /> full range
-      </span>
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-4 py-3">
+      <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
+        How to read each player&rsquo;s weekly scoring
+      </div>
+      <div className="flex flex-wrap gap-x-6 gap-y-2 text-[11px] text-zinc-400">
+        <span className="flex items-center gap-1.5">
+          <span className="h-2 w-2 shrink-0 rounded-full bg-zinc-300/60" /> a dot = one game
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-3 w-5 shrink-0 rounded border border-emerald-800 bg-emerald-500/25" /> box = his
+          middle 50% of weeks
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-3.5 w-0.5 shrink-0 bg-zinc-100" /> median = typical week (half above, half below)
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-2 w-2 shrink-0 rotate-45 border border-white bg-zinc-900" /> average (rises with big
+          games)
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-px w-5 shrink-0 bg-zinc-500" /> whiskers = worst → best game
+        </span>
+      </div>
     </div>
   );
 }
@@ -322,7 +329,7 @@ function PlayerRow({ p, scaleMax, leagueId }: { p: RoomPlayer; scaleMax: number;
       </div>
 
       {/* the plot */}
-      <div className="relative h-11 flex-1">
+      <div className="relative h-16 flex-1">
         {Array.from({ length: Math.floor(scaleMax / 10) + 1 }, (_, k) => k * 10).map((v) => (
           <div key={v} className="absolute top-0 bottom-0 w-px bg-zinc-800/70" style={{ left: pct(v) }} />
         ))}
@@ -351,6 +358,25 @@ function PlayerRow({ p, scaleMax, leagueId }: { p: RoomPlayer; scaleMax: number;
           style={{ left: pct(p.mean) }}
           title={`average ${p.mean}`}
         />
+        {/* value labels: middle-50% above the box, worst/best under the whiskers */}
+        <span
+          className="absolute top-0 -translate-x-1/2 text-[9px] tabular-nums text-zinc-400"
+          style={{ left: pct((p.q1 + p.q3) / 2) }}
+        >
+          {p.q1}–{p.q3}
+        </span>
+        <span
+          className="absolute bottom-0 -translate-x-1/2 text-[9px] tabular-nums text-zinc-500"
+          style={{ left: pct(p.min) }}
+        >
+          {p.min}
+        </span>
+        <span
+          className="absolute bottom-0 -translate-x-1/2 text-[9px] tabular-nums text-zinc-500"
+          style={{ left: pct(p.max) }}
+        >
+          {p.max}
+        </span>
       </div>
 
       {/* right-side numbers */}
