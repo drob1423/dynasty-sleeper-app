@@ -190,7 +190,7 @@ function TeamRow({
           <div className="mb-1 truncate text-sm font-medium text-white">{t.handle}</div>
           <div className="flex flex-col gap-1">
             <PlaceBar label="ST" placement={t.starterPlacement} total={total} barClass="bg-emerald-500/70" />
-            <PlaceBar label="BN" placement={t.benchPlacement} total={total} barClass="bg-sky-500/60" count={t.benchCount} />
+            <PlaceBar label="BN" placement={t.benchPlacement} total={total} barClass="bg-sky-500/60" />
           </div>
         </div>
       </button>
@@ -213,13 +213,11 @@ function PlaceBar({
   placement,
   total,
   barClass,
-  count,
 }: {
   label: string;
   placement: number | null;
   total: number;
   barClass: string;
-  count?: number;
 }) {
   return (
     <div className="flex items-center gap-2">
@@ -227,9 +225,8 @@ function PlaceBar({
       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-zinc-800">
         <div className={`h-full rounded-full ${barClass}`} style={{ width: `${barFill(placement, total)}%` }} />
       </div>
-      <span className={`w-16 shrink-0 text-right text-xs font-semibold ${placementColor(placement, total)}`}>
+      <span className={`w-12 shrink-0 text-right text-xs font-semibold ${placementColor(placement, total)}`}>
         {placement ? ord(placement) : "—"}
-        {count != null && placement != null && <span className="text-zinc-600"> ·{count}</span>}
       </span>
     </div>
   );

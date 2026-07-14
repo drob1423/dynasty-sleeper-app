@@ -160,6 +160,8 @@ export async function getRoomStrength(
         isMe: !!myUserId && r.owner_id === myUserId,
         _starterAvg: avg(core),
         _benchAvg: avg(bench),
+        _starterPts: core.reduce((s, p) => s + p.mean, 0),
+        _benchPts: bench.reduce((s, p) => s + p.mean, 0),
         starterPlacement: null as number | null,
         benchPlacement: null as number | null,
         starterCount: core.length,
@@ -168,24 +170,33 @@ export async function getRoomStrength(
       };
     });
 
-    // Placement = rank among teams (lower avg posRank = better).
-    const place = (key: "_starterAvg" | "_benchAvg", out: "starterPlacement" | "benchPlacement") => {
+    // Placement = rank among teams (lower avg posRank = better). Ties broken by
+    // actual production, so an exact avg-rank tie isn't decided by sort order.
+    const place = (
+      avgKey: "_starterAvg" | "_benchAvg",
+      ptsKey: "_starterPts" | "_benchPts",
+      out: "starterPlacement" | "benchPlacement"
+    ) => {
       [...teams]
-        .sort((a, b) => (a[key] ?? Infinity) - (b[key] ?? Infinity))
+        .sort(
+          (a, b) =>
+            (a[avgKey] ?? Infinity) - (b[avgKey] ?? Infinity) ||
+            (b[ptsKey] ?? -1) - (a[ptsKey] ?? -1)
+        )
         .forEach((t, i) => {
-          t[out] = t[key] == null ? null : i + 1;
+          t[out] = t[avgKey] == null ? null : i + 1;
         });
     };
-    place("_starterAvg", "starterPlacement");
-    place("_benchAvg", "benchPlacement");
+    place("_starterAvg", "_starterPts", "starterPlacement");
+    place("_benchAvg", "_benchPts", "benchPlacement");
 
     teams.sort((a, b) => (a.starterPlacement ?? 99) - (b.starterPlacement ?? 99));
     return {
       position: g.key,
       label: g.label,
       startersN: N,
-      teams: teams.map(({ _starterAvg, _benchAvg, ...t }) => {
-        void _starterAvg; void _benchAvg;
+      teams: teams.map(({ _starterAvg, _benchAvg, _starterPts, _benchPts, ...t }) => {
+        void _starterAvg; void _benchAvg; void _starterPts; void _benchPts;
         return t;
       }),
     };
