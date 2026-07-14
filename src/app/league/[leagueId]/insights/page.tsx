@@ -363,19 +363,19 @@ function PlayerRow({ p, scaleMax, leagueId }: { p: RoomPlayer; scaleMax: number;
           className="absolute top-0 -translate-x-1/2 text-[9px] tabular-nums text-zinc-400"
           style={{ left: pct((p.q1 + p.q3) / 2) }}
         >
-          {p.q1}–{p.q3}
+          {p.q1.toFixed(1)}–{p.q3.toFixed(1)}
         </span>
         <span
           className="absolute bottom-0 -translate-x-1/2 text-[9px] tabular-nums text-zinc-500"
           style={{ left: pct(p.min) }}
         >
-          {p.min}
+          {p.min.toFixed(1)}
         </span>
         <span
           className="absolute bottom-0 -translate-x-1/2 text-[9px] tabular-nums text-zinc-500"
           style={{ left: pct(p.max) }}
         >
-          {p.max}
+          {p.max.toFixed(1)}
         </span>
       </div>
 
