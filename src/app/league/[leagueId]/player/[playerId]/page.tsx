@@ -8,6 +8,7 @@ import {
   getSeasonChain,
   getPlayerMap,
   getFullRosters,
+  seasonHasData,
   type PlayerInfo,
 } from "@/lib/sleeper";
 import {
@@ -45,6 +46,7 @@ export default function PlayerProfilePage() {
   const [tab, setTab] = useState("overview");
   const [heat, setHeat] = useState<number | null>(null); // 0 (worst) .. 1 (best) at position
   const [rankLabel, setRankLabel] = useState("");
+  const [spanLabel, setSpanLabel] = useState(""); // e.g. "2024–25"
 
   useEffect(() => {
     async function load() {
@@ -61,6 +63,18 @@ export default function PlayerProfilePage() {
       ]);
       setScoringFormat(chain[0]?.scoringFormat ?? "");
       setPlayerMap(players);
+      // Dynasty span of the stats (played seasons, 2024+).
+      const played = chain
+        .filter((l) => Number(l.season) >= 2024 && seasonHasData(l))
+        .map((l) => l.season)
+        .sort();
+      setSpanLabel(
+        played.length === 0
+          ? ""
+          : played.length === 1
+          ? played[0]
+          : `${played[0]}–${played[played.length - 1].slice(2)}`
+      );
       const stat = cachedStats?.[playerId] ?? null;
       setPstat(stat);
 
@@ -202,6 +216,12 @@ export default function PlayerProfilePage() {
             <HeaderStat label="Ceiling" value={pstat.max.toFixed(1)} />
           </div>
         )}
+        {pstat && (
+          <div className="relative border-t border-zinc-800 bg-zinc-950/40 px-4 py-1.5 text-center text-[10px] text-zinc-500">
+            Every real game since your league&rsquo;s dynasty began
+            {spanLabel && ` · ${spanLabel}`} · scored in your rules
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
@@ -224,7 +244,7 @@ export default function PlayerProfilePage() {
       {/* Overview */}
       {active === "overview" &&
         (pstat ? (
-          <ProductionCard stat={pstat} scoringFormat={scoringFormat} />
+          <ProductionCard stat={pstat} scoringFormat={scoringFormat} span={spanLabel} />
         ) : (
           <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6 text-sm text-zinc-400">
             No games on record for this player yet.
@@ -407,7 +427,7 @@ function GameLogTab({ log }: { log: [number, number, number][] }) {
 }
 
 // A player's real weekly-scoring distribution, from cached game logs.
-function ProductionCard({ stat, scoringFormat }: { stat: PlayerStat; scoringFormat: string }) {
+function ProductionCard({ stat, scoringFormat, span }: { stat: PlayerStat; scoringFormat: string; span?: string }) {
   const scaleMax = Math.max(30, Math.ceil(stat.max / 10) * 10);
   const pct = (v: number) => `${Math.max(0, Math.min(100, (v / scaleMax) * 100))}%`;
   const ticks: number[] = [];
@@ -416,7 +436,7 @@ function ProductionCard({ stat, scoringFormat }: { stat: PlayerStat; scoringForm
   return (
     <div className="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
       <div className="flex items-baseline justify-between text-[11px] uppercase tracking-wide text-zinc-500">
-        <span>Weekly scoring · his real games</span>
+        <span>Weekly scoring · his real games{span && ` · ${span}`}</span>
         <span>
           {stat.gp} game{stat.gp !== 1 && "s"}
           {small && " · small sample"}
