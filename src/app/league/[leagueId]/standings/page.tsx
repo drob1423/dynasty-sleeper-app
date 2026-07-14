@@ -227,8 +227,8 @@ export default function LeaguePage() {
 
         <p className="mt-6 text-xs text-zinc-600">
           Reg = regular-season record · Playoff = medal-game record · PO Apps =
-          playoff appearances · PF/PA = points for/against · Pts Back = points
-          behind the top scorer · 🥇🥈🥉 = season finish.
+          playoff appearances · PF/PA = points for/against · the smaller number
+          under PF is points behind the top scorer · 🥇🥈🥉 = season finish.
         </p>
       </div>
     </>
@@ -318,7 +318,7 @@ function AllTimeTable({ rows }: { rows: AllTimeTableRow[] }) {
 
   return (
     <div className="overflow-x-auto rounded-2xl border border-zinc-800 bg-zinc-900">
-      <table className="w-full min-w-[640px] text-sm">
+      <table className="w-full min-w-[560px] text-sm">
         <thead>
           {/* Group header row */}
           <tr className="text-xs uppercase tracking-wide text-zinc-400">
@@ -327,7 +327,7 @@ function AllTimeTable({ rows }: { rows: AllTimeTableRow[] }) {
             <th className="px-3 pt-3 pb-1" />
             <th
               className={`px-3 pt-3 pb-1 text-center font-semibold text-emerald-400 ${groupEdge}`}
-              colSpan={4}
+              colSpan={3}
             >
               Regular Season
             </th>
@@ -347,7 +347,6 @@ function AllTimeTable({ rows }: { rows: AllTimeTableRow[] }) {
               Record
             </th>
             <th className="px-3 pb-3 text-right font-medium">PF</th>
-            <th className="px-3 pb-3 text-right font-medium">Pts Back</th>
             <th className="px-3 pb-3 text-right font-medium">PA</th>
             <th className={`px-3 pb-3 text-center font-medium ${groupEdge}`}>
               Record
@@ -388,10 +387,13 @@ function AllTimeTable({ rows }: { rows: AllTimeTableRow[] }) {
                   {row.reg}
                 </td>
                 <td className="px-3 py-3 text-right align-top text-zinc-300">
-                  {row.pf.toFixed(1)}
-                </td>
-                <td className="px-3 py-3 text-right align-top text-zinc-500">
-                  {back < 0.05 ? "—" : `-${back.toFixed(1)}`}
+                  <div>{row.pf.toFixed(1)}</div>
+                  <div
+                    className="mt-0.5 text-xs text-zinc-500"
+                    title="Points behind the top scorer"
+                  >
+                    {back < 0.05 ? "—" : `-${back.toFixed(1)}`}
+                  </div>
                 </td>
                 <td className="px-3 py-3 text-right align-top text-zinc-400">
                   {row.pa.toFixed(1)}
