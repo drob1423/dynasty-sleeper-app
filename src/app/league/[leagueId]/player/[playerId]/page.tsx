@@ -309,27 +309,51 @@ function StintCard({
               {s.badSits
                 .slice()
                 .sort((a, b) => b.gain - a.gain)
-                .map((b, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center justify-between rounded-lg bg-zinc-950/60 px-3 py-2 text-xs"
-                  >
-                    <span className="text-zinc-400">
-                      <span className="text-zinc-300">
-                        Wk {b.week} &rsquo;{b.seasonLabel.slice(2)}
-                      </span>{" "}
-                      — started{" "}
-                      <span className="text-zinc-300">
-                        {b.replacedId ? players[b.replacedId]?.name ?? "a starter" : "a starter"}
-                      </span>{" "}
-                      ({b.replacedPts.toFixed(1)}) over him (
-                      {b.playerPts.toFixed(1)})
-                    </span>
-                    <span className="ml-2 shrink-0 font-semibold text-red-400">
-                      -{b.gain.toFixed(1)}
-                    </span>
-                  </div>
-                ))}
+                .map((b, i) => {
+                  const result =
+                    b.myScore > b.oppScore
+                      ? "Won"
+                      : b.myScore < b.oppScore
+                      ? "Lost"
+                      : "Tied";
+                  return (
+                    <div
+                      key={i}
+                      className="rounded-lg bg-zinc-950/60 px-3 py-2 text-xs"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-zinc-300">
+                          Wk {b.week} &rsquo;{b.seasonLabel.slice(2)} · vs{" "}
+                          {b.oppName}
+                        </span>
+                        <span className="flex shrink-0 items-center gap-2">
+                          <span className="text-zinc-400">
+                            {result} {b.myScore.toFixed(1)}–
+                            {b.oppScore.toFixed(1)}
+                          </span>
+                          {b.wouldHaveWon && (
+                            <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-emerald-400">
+                              Would&rsquo;ve won
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between">
+                        <span className="text-zinc-500">
+                          started{" "}
+                          {b.replacedId
+                            ? players[b.replacedId]?.name ?? "a starter"
+                            : "a starter"}{" "}
+                          ({b.replacedPts.toFixed(1)}) over him (
+                          {b.playerPts.toFixed(1)})
+                        </span>
+                        <span className="ml-2 shrink-0 font-semibold text-red-400">
+                          -{b.gain.toFixed(1)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
             </div>
           )}
         </div>

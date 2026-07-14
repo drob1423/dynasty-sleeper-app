@@ -50,6 +50,11 @@ export type BadSit = {
   replacedId: string | null; // the starter he'd have replaced (worst eligible)
   replacedPts: number;
   gain: number; // points the swap would have added
+  oppName: string; // opponent that week
+  oppHandle: string;
+  myScore: number; // your team's score that week
+  oppScore: number;
+  wouldHaveWon: boolean; // a loss that starting him would have flipped to a win
 };
 
 export type TimelinePoint = {
@@ -375,23 +380,49 @@ export async function getPlayerProfile(
           }));
           const optimal = optimalStarters(rosterPositions, rostered);
           if (optimal.has(playerId)) {
-            const m = marginalForWeek(
+            const mr = marginalForWeek(
               rosterPositions,
               startersArr,
               pp,
               pts,
               fantasyPositions
             );
-            if (m.gain > 0) {
-              a.marginal += m.gain;
+            if (mr.gain > 0) {
+              a.marginal += mr.gain;
               a.shouldStart += 1;
+
+              // Opponent + score that week, and whether starting him would
+              // have flipped a loss into a win.
+              let myScore = m.points ?? 0;
+              let oppScore = 0;
+              let oppName = "opponent";
+              let oppHandle = "";
+              const pair = byMatch.get(m.matchup_id);
+              if (pair && pair.length === 2) {
+                const oppEntry = pair.find((x) => x.roster_id !== m.roster_id);
+                if (oppEntry) {
+                  oppScore = oppEntry.points;
+                  const oppOwner = ownerByRoster.get(oppEntry.roster_id);
+                  const nm = oppOwner ? names.get(oppOwner) : undefined;
+                  oppName = nm?.name ?? "opponent";
+                  oppHandle = nm?.handle ?? "";
+                }
+              }
+              const wouldHaveWon =
+                myScore < oppScore && myScore + mr.gain > oppScore;
+
               a.badSits.push({
                 seasonLabel: season.season,
                 week,
                 playerPts: pts,
-                replacedId: m.replacedId,
-                replacedPts: m.replacedPts,
-                gain: m.gain,
+                replacedId: mr.replacedId,
+                replacedPts: mr.replacedPts,
+                gain: mr.gain,
+                oppName,
+                oppHandle,
+                myScore,
+                oppScore,
+                wouldHaveWon,
               });
             }
           }
