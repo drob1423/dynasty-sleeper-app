@@ -34,6 +34,10 @@ export function TeamScoreCard({
   const l5w = t.form.filter((r) => r === "W").length;
   const l5l = t.form.filter((r) => r === "L").length;
 
+  // All-time = regular season + meaningful playoff games.
+  const allW = t.dynastyW + t.playoffW;
+  const allL = t.dynastyL + t.playoffL;
+
   const inner = (
     <>
       {/* Identity */}
@@ -84,7 +88,7 @@ export function TeamScoreCard({
 
       {/* Their vitals — all-time first */}
       <div className="mt-4 grid grid-cols-4 gap-1 rounded-xl bg-zinc-950/40 py-3">
-        <BigStat label="All-Time" value={`${t.dynastyW}-${t.dynastyL}`} />
+        <BigStat label="All-Time" value={`${allW}-${allL}`} sub={winPct(allW, allL)} />
         <BigStat label="This Year" value={`${t.currentW}-${t.currentL}`} />
         <BigStat
           label="Streak"
@@ -108,6 +112,25 @@ export function TeamScoreCard({
               : undefined
           }
         />
+      </div>
+
+      {/* All-time breakdown */}
+      <div className="mt-2 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[11px] text-zinc-500">
+        <span>
+          Reg season{" "}
+          <span className="font-semibold text-zinc-300">
+            {t.dynastyW}-{t.dynastyL}
+          </span>{" "}
+          <span className="text-zinc-600">{winPct(t.dynastyW, t.dynastyL)}</span>
+        </span>
+        <span className="text-zinc-700">·</span>
+        <span>
+          Playoffs{" "}
+          <span className="font-semibold text-zinc-300">
+            {t.playoffW}-{t.playoffL}
+          </span>{" "}
+          <span className="text-zinc-600">{winPct(t.playoffW, t.playoffL)}</span>
+        </span>
       </div>
 
       {/* Second row — quality, luck, hardware */}
@@ -256,6 +279,13 @@ function BigStat({
 
 export function medalEmoji(place: number) {
   return place === 1 ? "🥇" : place === 2 ? "🥈" : place === 3 ? "🥉" : "";
+}
+
+// Win percentage as ".643" (drops the leading zero, fantasy convention).
+function winPct(w: number, l: number): string {
+  const g = w + l;
+  if (!g) return "—";
+  return (w / g).toFixed(3).replace(/^0/, "");
 }
 
 export function ordinal(n: number) {

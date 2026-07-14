@@ -27,8 +27,10 @@ export type TeamCard = {
   lastSeason: string | null;
   lastRank: number | null;
   place: number | null; // medal
-  dynastyW: number;
+  dynastyW: number; // regular-season wins across the dynasty
   dynastyL: number;
+  playoffW: number; // meaningful playoff wins across the dynasty
+  playoffL: number;
   currentW: number;
   currentL: number;
   streak: Streak;
@@ -145,8 +147,9 @@ export async function loadTeamCards(
     })
   );
 
-  // Tally podium finishes across the dynasty.
+  // Tally podium finishes + meaningful playoff records across the dynasty.
   const medals = new Map<number, { g: number; s: number; b: number }>();
+  const poRec = new Map<number, { w: number; l: number }>();
   playoffsPerSeason.forEach((m) =>
     m.forEach((v, rid) => {
       const o = medals.get(rid) ?? { g: 0, s: 0, b: 0 };
@@ -154,6 +157,10 @@ export async function loadTeamCards(
       else if (v.place === 2) o.s += 1;
       else if (v.place === 3) o.b += 1;
       medals.set(rid, o);
+      const p = poRec.get(rid) ?? { w: 0, l: 0 };
+      p.w += v.playoffWins;
+      p.l += v.playoffLosses;
+      poRec.set(rid, p);
     })
   );
 
@@ -214,6 +221,8 @@ export async function loadTeamCards(
           ?.place ?? null,
       dynastyW: d.w,
       dynastyL: d.l,
+      playoffW: poRec.get(r.roster_id)?.w ?? 0,
+      playoffL: poRec.get(r.roster_id)?.l ?? 0,
       currentW: r.wins,
       currentL: r.losses,
       streak: trailingStreak(formByRoster.get(r.roster_id) ?? []),
