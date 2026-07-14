@@ -50,8 +50,8 @@ async function getChain(leagueId: string): Promise<LeagueDetail[]> {
   while (cur && out.length < 20) {
     const l = (await sfetch(`/league/${cur}`)) as LeagueDetail | null;
     if (!l) break;
+    if (Number(l.season) < 2024) break; // dynasty starts 2024; exclude redraft seasons
     out.push(l);
-    if (l.season === "2023") break; // dynasty started 2024; 2023 is redraft
     cur = l.previous_league_id;
   }
   return out;
@@ -191,7 +191,9 @@ async function computeLeaguePlayerStats(admin: Admin, chain: LeagueDetail[]): Pr
   for (const row of weeks ?? []) {
     const payload = row.payload as Record<string, Record<string, number>>;
     for (const pid in payload) {
-      const pts = scorePlayerWeek(payload[pid], scoring);
+      const raw = payload[pid];
+      if ((raw.gp ?? 1) < 1) continue; // count only weeks the player was active
+      const pts = scorePlayerWeek(raw, scoring);
       const arr = scores.get(pid) ?? [];
       arr.push(pts);
       scores.set(pid, arr);
