@@ -250,7 +250,7 @@ function Medals({ medals }: { medals: Medal[] }) {
     (a, b) => a.season.localeCompare(b.season) || a.place - b.place
   );
   return (
-    <span className="ml-1 inline-flex flex-wrap gap-x-1.5 align-middle">
+    <span className="inline-flex flex-wrap gap-x-1.5 gap-y-0.5 align-middle">
       {sorted.map((m, i) => (
         <span
           key={i}
@@ -318,7 +318,7 @@ function AllTimeTable({ rows }: { rows: AllTimeTableRow[] }) {
 
   return (
     <div className="overflow-x-auto rounded-2xl border border-zinc-800 bg-zinc-900">
-      <table className="w-full min-w-[820px] text-sm">
+      <table className="w-full min-w-[640px] text-sm">
         <thead>
           {/* Group header row */}
           <tr className="text-xs uppercase tracking-wide text-zinc-400">
@@ -363,15 +363,18 @@ function AllTimeTable({ rows }: { rows: AllTimeTableRow[] }) {
                 <td className="px-4 py-3 align-top text-zinc-500">{i + 1}</td>
                 <td className="px-4 py-3">
                   <div className="font-medium text-white">
-                    {row.name}
-                    <Medals medals={row.medals} />
+                    @{row.handle}
                     {row.isCommish && (
                       <span className="ml-2 rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] uppercase text-zinc-400">
                         Commish
                       </span>
                     )}
                   </div>
-                  <div className="text-xs text-zinc-500">@{row.handle}</div>
+                  {row.medals.length > 0 && (
+                    <div className="mt-1">
+                      <Medals medals={row.medals} />
+                    </div>
+                  )}
                   {row.subtitle && (
                     <div className="mt-1 text-xs text-zinc-600">{row.subtitle}</div>
                   )}
@@ -430,14 +433,14 @@ function SeasonTable({ rows }: { rows: EnrichedRow[] }) {
               <td className="px-4 py-3 text-zinc-500">{i + 1}</td>
               <td className="px-4 py-3">
                 <div className="font-medium text-white">
-                  {r.managerName}
+                  @{r.displayName}
                   {r.place && (
                     <span className="ml-1" title={`${ordinal(r.place)} place`}>
                       {medalEmoji(r.place)}
                     </span>
                   )}
                 </div>
-                <div className="text-xs text-zinc-500">@{r.displayName}</div>
+                <div className="text-xs text-zinc-500">{r.managerName}</div>
               </td>
               <td className="px-4 py-3 text-center font-medium text-white">
                 {formatRecord(r.wins, r.losses, r.ties)}
