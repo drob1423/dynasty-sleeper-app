@@ -380,6 +380,8 @@ export type H2HRecord = {
   poT: number;
   myPtsFor: number; // total points I scored in our regular-season matchups
   oppPtsFor: number; // total points they scored in those matchups
+  myPtsForPO: number; // my points in our postseason (medal) matchups
+  oppPtsForPO: number; // their points in those postseason matchups
 };
 
 // Compute one season's H2H contribution for a user, keyed by opponent owner id.
@@ -400,6 +402,8 @@ async function seasonH2H(
         poT: 0,
         myPtsFor: 0,
         oppPtsFor: 0,
+        myPtsForPO: 0,
+        oppPtsForPO: 0,
       };
       out.set(oid, e);
     }
@@ -448,10 +452,27 @@ async function seasonH2H(
     }
   }
 
-  // Playoffs — championship bracket, games that matter only
-  const wb = await fetch(`${BASE}/league/${season.league_id}/winners_bracket`)
-    .then((r) => (r.ok ? r.json() : []))
-    .catch(() => []);
+  // Playoffs — championship bracket (games that matter) + their scores.
+  // Bracket round r maps to week (playoff_week_start + r - 1); we pull those
+  // weeks' matchups to get the points for each medal game.
+  const pws = season.playoff_week_start || 15;
+  const poWeeks = [pws, pws + 1, pws + 2];
+  const [wb, ...poMs] = await Promise.all([
+    fetch(`${BASE}/league/${season.league_id}/winners_bracket`)
+      .then((r) => (r.ok ? r.json() : []))
+      .catch(() => []),
+    ...poWeeks.map((w) =>
+      fetch(`${BASE}/league/${season.league_id}/matchups/${w}`)
+        .then((r) => (r.ok ? r.json() : []))
+        .catch(() => [])
+    ),
+  ]);
+  const poByWeek = new Map<
+    number,
+    { roster_id: number; points: number | null }[]
+  >();
+  poWeeks.forEach((w, i) => poByWeek.set(w, Array.isArray(poMs[i]) ? poMs[i] : []));
+
   if (Array.isArray(wb)) {
     for (const m of wb) {
       const t1 = typeof m.t1 === "number" ? m.t1 : null;
@@ -467,6 +488,18 @@ async function seasonH2H(
       const e = ensure(oppOwner);
       if (w === userRoster) e.poW++;
       else if (w === oppRoster) e.poL++;
+
+      // Add this game's scores from the matching playoff week.
+      const round = typeof m.r === "number" ? m.r : null;
+      if (round != null) {
+        const ms2 = poByWeek.get(pws + (round - 1)) ?? [];
+        const mine = ms2.find((x) => x.roster_id === userRoster);
+        const oppEntry = ms2.find((x) => x.roster_id === oppRoster);
+        if (mine?.points != null && oppEntry?.points != null) {
+          e.myPtsForPO += mine.points;
+          e.oppPtsForPO += oppEntry.points;
+        }
+      }
     }
   }
 
@@ -495,6 +528,8 @@ export async function getUserH2H(
           poT: 0,
           myPtsFor: 0,
           oppPtsFor: 0,
+          myPtsForPO: 0,
+          oppPtsForPO: 0,
         };
       e.regW += rec.regW;
       e.regL += rec.regL;
@@ -504,6 +539,8 @@ export async function getUserH2H(
       e.poT += rec.poT;
       e.myPtsFor += rec.myPtsFor;
       e.oppPtsFor += rec.oppPtsFor;
+      e.myPtsForPO += rec.myPtsForPO;
+      e.oppPtsForPO += rec.oppPtsForPO;
       merged.set(oid, e);
     }
   }

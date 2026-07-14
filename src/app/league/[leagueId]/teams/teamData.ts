@@ -151,6 +151,8 @@ export async function loadTeamCards(
               poT: 0,
               myPtsFor: 0,
               oppPtsFor: 0,
+              myPtsForPO: 0,
+              oppPtsForPO: 0,
             }
           : null,
       isMe: !!myUserId && r.owner_id === myUserId,

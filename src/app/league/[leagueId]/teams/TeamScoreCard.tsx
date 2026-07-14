@@ -126,42 +126,56 @@ function H2HStrip({ rec }: { rec: H2HRecord | null }) {
 
   const color = (w: number, l: number) =>
     w > l ? "text-emerald-400" : l > w ? "text-red-400" : "text-zinc-400";
+  const avgColor = (mine: number, opp: number) =>
+    mine > opp ? "text-emerald-400" : opp > mine ? "text-red-400" : "text-zinc-400";
 
   const regGames = rec.regW + rec.regL + rec.regT;
-  const myAvg = regGames ? rec.myPtsFor / regGames : null;
-  const oppAvg = regGames ? rec.oppPtsFor / regGames : null;
-  const avgColor =
-    myAvg != null && oppAvg != null
-      ? myAvg > oppAvg
-        ? "text-emerald-400"
-        : oppAvg > myAvg
-        ? "text-red-400"
-        : "text-zinc-400"
-      : "text-zinc-400";
+  const poGames = rec.poW + rec.poL + rec.poT;
+
+  const line = (
+    label: string,
+    w: number,
+    l: number,
+    t: number,
+    games: number,
+    myPts: number,
+    oppPts: number
+  ) => {
+    const myAvg = games ? myPts / games : null;
+    const oppAvg = games ? oppPts / games : null;
+    return (
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-sm">
+          <span className={`font-semibold ${color(w, l)}`}>
+            {w}–{l}
+            {t > 0 && `–${t}`}
+          </span>
+          <span className="text-xs text-zinc-600"> {label}</span>
+        </span>
+        <span className="shrink-0 text-xs">
+          {myAvg != null && oppAvg != null ? (
+            <>
+              <span className={`font-medium ${avgColor(myAvg, oppAvg)}`}>
+                {myAvg.toFixed(1)}
+              </span>
+              <span className="text-zinc-600">–{oppAvg.toFixed(1)} avg</span>
+            </>
+          ) : (
+            <span className="text-zinc-600">no games</span>
+          )}
+        </span>
+      </div>
+    );
+  };
 
   return (
     <div className="mt-4 rounded-xl border border-emerald-900/50 bg-emerald-950/20 px-3.5 py-2.5">
       <div className="mb-1.5 text-[10px] uppercase tracking-wide text-zinc-500">
         H2H Matchup
       </div>
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="text-[15px]">
-          <span className={`font-semibold ${color(rec.regW, rec.regL)}`}>
-            {rec.regW}–{rec.regL}
-            {rec.regT > 0 && `–${rec.regT}`}
-          </span>
-          <span className="text-xs text-zinc-600"> reg</span>
-          <span className={`ml-2 font-semibold ${color(rec.poW, rec.poL)}`}>
-            {rec.poW}–{rec.poL}
-          </span>
-          <span className="text-xs text-zinc-600"> po</span>
-        </span>
-        {myAvg != null && oppAvg != null && (
-          <span className="shrink-0 text-xs">
-            <span className={`font-medium ${avgColor}`}>{myAvg.toFixed(1)}</span>
-            <span className="text-zinc-600">–{oppAvg.toFixed(1)} avg</span>
-          </span>
-        )}
+      <div className="space-y-1">
+        {line("reg", rec.regW, rec.regL, rec.regT, regGames, rec.myPtsFor, rec.oppPtsFor)}
+        {line("po", rec.poW, rec.poL, rec.poT, poGames, rec.myPtsForPO, rec.oppPtsForPO)}
       </div>
     </div>
   );
