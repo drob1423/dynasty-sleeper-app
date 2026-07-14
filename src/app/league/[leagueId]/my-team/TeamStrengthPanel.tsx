@@ -12,7 +12,7 @@ const POS_CHIP: Record<string, string> = {
   FLEX: "bg-violet-500/10 text-violet-300/90",
 };
 
-type Row = { pos: string; label: string; rank: number | null; total: number };
+type Row = { pos: string; label: string; st: number | null; bn: number | null; total: number };
 
 function tier(rank: number | null, total: number): "hi" | "mid" | "lo" | "na" {
   if (rank == null) return "na";
@@ -42,12 +42,16 @@ export function TeamStrengthPanel({ leagueId }: { leagueId: string }) {
       }
       const total = rooms[0].teams.length;
       setRows(
-        rooms.map((r) => ({
-          pos: r.position,
-          label: r.label,
-          rank: r.teams.find((t) => t.isMe)?.starterPlacement ?? null,
-          total,
-        }))
+        rooms.map((r) => {
+          const me = r.teams.find((t) => t.isMe);
+          return {
+            pos: r.position,
+            label: r.label,
+            st: me?.starterPlacement ?? null,
+            bn: me?.benchPlacement ?? null,
+            total,
+          };
+        })
       );
       // Overall = rank teams by their average position placement.
       const agg = new Map<number, { sum: number; n: number; isMe: boolean }>();
@@ -89,16 +93,23 @@ export function TeamStrengthPanel({ leagueId }: { leagueId: string }) {
       </div>
       <div className="grid grid-cols-5 gap-1.5">
         {rows.map((r) => {
-          const t = tier(r.rank, r.total);
+          const st = tier(r.st, r.total);
+          const bn = tier(r.bn, r.total);
           return (
             <div key={r.pos} className="overflow-hidden rounded-lg bg-zinc-900">
-              <div className={`py-1.5 text-center text-[9px] font-bold ${POS_CHIP[r.pos] ?? "text-zinc-400"}`}>
+              <div className={`py-1 text-center text-[9px] font-bold ${POS_CHIP[r.pos] ?? "text-zinc-400"}`}>
                 {r.pos}
               </div>
-              <div className={`pb-1.5 text-center text-base font-bold tabular-nums ${TIER_TEXT[t]}`}>
-                {r.rank ? `#${r.rank}` : "—"}
+              <div className="space-y-0.5 px-2 py-1.5">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-[9px] font-semibold uppercase text-zinc-600">ST</span>
+                  <span className={`font-bold tabular-nums ${TIER_TEXT[st]}`}>{r.st ? `#${r.st}` : "—"}</span>
+                </div>
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-[9px] font-semibold uppercase text-zinc-600">BN</span>
+                  <span className={`font-bold tabular-nums ${TIER_TEXT[bn]}`}>{r.bn ? `#${r.bn}` : "—"}</span>
+                </div>
               </div>
-              <div className={`h-1 ${TIER_BAR[t]}`} style={{ opacity: r.rank ? 1 : 0.2 }} />
             </div>
           );
         })}
