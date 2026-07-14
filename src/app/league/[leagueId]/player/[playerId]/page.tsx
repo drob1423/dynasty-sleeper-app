@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import {
   getSeasonChain,
   getPlayerMap,
+  getFullRosters,
   type PlayerInfo,
 } from "@/lib/sleeper";
 import {
@@ -42,6 +43,8 @@ export default function PlayerProfilePage() {
   const [playerMap, setPlayerMap] = useState<Record<string, PlayerInfo>>({});
   const [pstat, setPstat] = useState<PlayerStat | null>(null);
   const [tab, setTab] = useState("overview");
+  const [heat, setHeat] = useState<number | null>(null); // 0 (worst) .. 1 (best) at position
+  const [rankLabel, setRankLabel] = useState("");
 
   useEffect(() => {
     async function load() {
@@ -50,14 +53,31 @@ export default function PlayerProfilePage() {
         router.replace("/login");
         return;
       }
-      const [chain, players, cachedStats] = await Promise.all([
+      const [chain, players, cachedStats, rosters] = await Promise.all([
         getSeasonChain(leagueId),
         getPlayerMap(),
         getCachedPlayerStats(leagueId),
+        getFullRosters(leagueId),
       ]);
       setScoringFormat(chain[0]?.scoringFormat ?? "");
       setPlayerMap(players);
-      setPstat(cachedStats?.[playerId] ?? null);
+      const stat = cachedStats?.[playerId] ?? null;
+      setPstat(stat);
+
+      // Heat = where this PPG ranks among rostered players at his position.
+      const pos = players[playerId]?.position;
+      if (stat && pos && cachedStats && stat.gp >= 4) {
+        const pool = rosters
+          .flatMap((r) => r.players ?? [])
+          .filter((pid) => players[pid]?.position === pos && (cachedStats[pid]?.gp ?? 0) >= 4)
+          .map((pid) => cachedStats[pid].mean);
+        const better = pool.filter((v) => v > stat.mean).length; // 0 = best
+        setHeat(pool.length > 1 ? 1 - better / (pool.length - 1) : 0.5);
+        setRankLabel(`${pos}${better + 1} of ${pool.length} rostered`);
+      } else {
+        setHeat(null);
+        setRankLabel("");
+      }
       const pInfo = players[playerId] ?? null;
       setInfo(pInfo);
       const prof = await getPlayerProfile(
@@ -164,14 +184,7 @@ export default function PlayerProfilePage() {
               )}
             </div>
           </div>
-          {pstat && (
-            <div className="shrink-0 text-right">
-              <div className="text-3xl font-bold leading-none text-white">{pstat.mean.toFixed(1)}</div>
-              <div className="mt-1 text-[10px] uppercase tracking-wide text-zinc-500">
-                ppg{scoringFormat && ` · ${scoringFormat}`}
-              </div>
-            </div>
-          )}
+          {pstat && <RatingBadge ppg={pstat.mean} heat={heat} rankLabel={rankLabel} />}
         </div>
         {pstat && (
           <div className="relative grid grid-cols-4 divide-x divide-zinc-800 border-t border-zinc-800 bg-zinc-900/60 text-center">
@@ -273,6 +286,40 @@ function posAccent(pos?: string | null): { badge: string; wash: string } {
     case "TE": return { badge: "border-amber-500/40 bg-amber-500/15 text-amber-300", wash: "bg-gradient-to-r from-amber-500/10 to-transparent" };
     default: return { badge: "border-zinc-600 bg-zinc-700/30 text-zinc-300", wash: "" };
   }
+}
+
+// Madden-style PPG rating: number in a ring colored by rank at position
+// (green = best in the league at his spot, red = worst).
+function heatColor(heat: number): string {
+  return `hsl(${Math.round(heat * 125)}, 70%, 46%)`; // 0 = red, 1 = green
+}
+
+function RatingBadge({
+  ppg,
+  heat,
+  rankLabel,
+}: {
+  ppg: number;
+  heat: number | null;
+  rankLabel: string;
+}) {
+  const color = heat == null ? "#52525b" : heatColor(heat);
+  return (
+    <div className="shrink-0 text-center">
+      <div
+        className="flex h-[68px] w-[68px] flex-col items-center justify-center rounded-full border-[3px] bg-zinc-950/70"
+        style={{ borderColor: color, boxShadow: `0 0 14px ${color}55` }}
+      >
+        <span className="text-xl font-bold leading-none text-white">{ppg.toFixed(1)}</span>
+        <span className="mt-0.5 text-[8px] font-semibold uppercase tracking-wider text-zinc-400">
+          ppg
+        </span>
+      </div>
+      {rankLabel && (
+        <div className="mt-1.5 text-[10px] font-medium text-zinc-300">{rankLabel}</div>
+      )}
+    </div>
+  );
 }
 
 function MetaPill({ children }: { children: React.ReactNode }) {
