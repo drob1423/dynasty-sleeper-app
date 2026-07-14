@@ -283,7 +283,8 @@ function AxisRuler({ scaleMax }: { scaleMax: number }) {
   const ticks: number[] = [];
   for (let v = 0; v <= scaleMax; v += 10) ticks.push(v);
   return (
-    <div className="flex items-center gap-3 pl-[184px] text-[9px] text-zinc-600">
+    <div className="flex items-center gap-3 text-[9px] text-zinc-600">
+      <div className="w-[184px] shrink-0" />
       <div className="relative h-3 flex-1">
         {ticks.map((v) => (
           <span key={v} className="absolute -translate-x-1/2" style={{ left: `${(v / scaleMax) * 100}%` }}>
@@ -291,7 +292,7 @@ function AxisRuler({ scaleMax }: { scaleMax: number }) {
           </span>
         ))}
       </div>
-      <span className="w-16 shrink-0 text-right">pts/wk</span>
+      <span className="w-28 shrink-0 text-right">pts/wk</span>
     </div>
   );
 }
@@ -320,8 +321,8 @@ function PlayerRow({ p, scaleMax, leagueId }: { p: RoomPlayer; scaleMax: number;
         </div>
       </div>
 
-      {/* the plot */}
-      <div className="relative h-16 flex-1">
+      {/* the plot — pure shape, no scattered labels */}
+      <div className="relative h-10 flex-1">
         {Array.from({ length: Math.floor(scaleMax / 10) + 1 }, (_, k) => k * 10).map((v) => (
           <div key={v} className="absolute top-0 bottom-0 w-px bg-zinc-800/70" style={{ left: pct(v) }} />
         ))}
@@ -329,52 +330,35 @@ function PlayerRow({ p, scaleMax, leagueId }: { p: RoomPlayer; scaleMax: number;
         <div className="absolute top-1/2 h-px -translate-y-1/2 bg-zinc-600" style={{ left: pct(p.min), width: `calc(${pct(p.max)} - ${pct(p.min)})` }} />
         {/* interquartile box */}
         <div
-          className={`absolute top-1/2 h-5 -translate-y-1/2 rounded border ${
+          className={`absolute top-1/2 h-4 -translate-y-1/2 rounded border ${
             p.isStarter ? "border-emerald-700/70 bg-emerald-500/15" : "border-sky-800/70 bg-sky-500/12"
           }`}
           style={{ left: pct(p.q1), width: `calc(${pct(p.q3)} - ${pct(p.q1)})` }}
         />
         {/* median */}
-        <div className="absolute top-1/2 h-6 w-0.5 -translate-y-1/2 bg-zinc-100" style={{ left: pct(p.median) }} title={`median ${p.median}`} />
+        <div className="absolute top-1/2 h-5 w-0.5 -translate-y-1/2 bg-zinc-100" style={{ left: pct(p.median) }} title={`median ${p.median}`} />
         {/* mean */}
         <div
           className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rotate-45 border border-white bg-zinc-900"
           style={{ left: pct(p.mean) }}
           title={`average ${p.mean}`}
         />
-        {/* value labels: box edges (25th/75th) above, worst/best under the whiskers */}
-        <span
-          className="absolute top-0 -translate-x-1/2 text-[9px] tabular-nums text-zinc-400"
-          style={{ left: pct(p.q1) }}
-        >
-          {p.q1.toFixed(1)}
-        </span>
-        <span
-          className="absolute top-0 -translate-x-1/2 text-[9px] tabular-nums text-zinc-400"
-          style={{ left: pct(p.q3) }}
-        >
-          {p.q3.toFixed(1)}
-        </span>
-        <span
-          className="absolute bottom-0 -translate-x-1/2 text-[9px] tabular-nums text-zinc-500"
-          style={{ left: pct(p.min) }}
-        >
-          {p.min.toFixed(1)}
-        </span>
-        <span
-          className="absolute bottom-0 -translate-x-1/2 text-[9px] tabular-nums text-zinc-500"
-          style={{ left: pct(p.max) }}
-        >
-          {p.max.toFixed(1)}
-        </span>
       </div>
 
-      {/* right-side numbers */}
-      <span className="w-16 shrink-0 text-right text-xs">
-        <span className="font-semibold text-white">{p.mean.toFixed(1)}</span>
-        <span className="text-zinc-600"> avg</span>
-        <span className="block text-[10px] text-zinc-500">med {p.median.toFixed(1)}</span>
-      </span>
+      {/* aligned numeric readout — same columns down the whole list */}
+      <div className="w-28 shrink-0 text-right leading-tight tabular-nums">
+        <div className="text-xs">
+          <span className="font-semibold text-white">{p.mean.toFixed(1)}</span>
+          <span className="text-zinc-600"> avg</span>
+        </div>
+        <div className="text-[10px] text-zinc-500">{p.median.toFixed(1)} med</div>
+        <div className="text-[10px] text-zinc-600">
+          {p.min.toFixed(1)}–{p.max.toFixed(1)} <span className="text-zinc-700">range</span>
+        </div>
+        <div className="text-[10px] text-zinc-600">
+          {p.q1.toFixed(1)}–{p.q3.toFixed(1)} <span className="text-zinc-700">mid</span>
+        </div>
+      </div>
     </div>
   );
 }
