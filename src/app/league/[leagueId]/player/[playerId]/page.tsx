@@ -128,7 +128,7 @@ export default function PlayerProfilePage() {
             src={teamLogoUrl(info.team)}
             alt=""
             aria-hidden="true"
-            className="pointer-events-none absolute -right-6 top-1/2 h-56 w-56 -translate-y-1/2 object-contain opacity-[0.13] brightness-75 saturate-150"
+            className="pointer-events-none absolute -right-6 top-1/2 h-56 w-56 -translate-y-1/2 object-contain opacity-[0.18] brightness-90 saturate-150"
             onError={(e) => (e.currentTarget.style.display = "none")}
           />
         )}
