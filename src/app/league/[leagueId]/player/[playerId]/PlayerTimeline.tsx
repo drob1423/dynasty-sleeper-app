@@ -1,11 +1,18 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { TimelinePoint } from "@/lib/playerProfile";
+
+const W = 680,
+  H = 200,
+  padL = 26,
+  padR = 10,
+  padT = 14,
+  padB = 28;
 
 // A shaded line of the player's weekly points. Background columns are green
 // (started) or red (benched); the line is colored by whoever owned him that
-// week, with dashed dividers at ownership changes.
+// week. Week numbers label the axis; hovering a point shows the details.
 export function PlayerTimeline({
   timeline,
   colorByOwner,
@@ -14,29 +21,26 @@ export function PlayerTimeline({
   colorByOwner: Record<string, string>;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const [hover, setHover] = useState<number | null>(null);
+
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+  const n = timeline.length;
+
+  const niceMax = useMemo(() => {
+    const m = Math.max(20, ...timeline.map((t) => t.pts));
+    return Math.ceil(m / 10) * 10;
+  }, [timeline]);
+
+  const X = (i: number) =>
+    n <= 1 ? padL + plotW / 2 : padL + (i / (n - 1)) * plotW;
+  const Y = (p: number) => padT + plotH - (p / niceMax) * plotH;
 
   useEffect(() => {
     const canvas = ref.current;
-    if (!canvas || timeline.length === 0) return;
+    if (!canvas || n === 0) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-
-    const W = 680,
-      H = 180,
-      padL = 26,
-      padR = 10,
-      padT = 14,
-      padB = 8;
-    const plotW = W - padL - padR;
-    const plotH = H - padT - padB;
-    const n = timeline.length;
-    const maxPts = Math.max(20, ...timeline.map((t) => t.pts));
-    const niceMax = Math.ceil(maxPts / 10) * 10;
-
-    const X = (i: number) =>
-      n === 1 ? padL + plotW / 2 : padL + (i / (n - 1)) * plotW;
-    const Y = (p: number) => padT + plotH - (p / niceMax) * plotH;
-
     ctx.clearRect(0, 0, W, H);
 
     // Background bands: green = started, red = benched.
@@ -55,7 +59,7 @@ export function PlayerTimeline({
       ctx.fillRect(bx, padT, bw, plotH);
     });
 
-    // Gridlines
+    // Gridlines + y labels
     ctx.strokeStyle = "rgba(113,113,122,0.22)";
     ctx.fillStyle = "#52525b";
     ctx.font = "10px sans-serif";
@@ -69,7 +73,15 @@ export function PlayerTimeline({
       ctx.fillText(String(g), padL - 4, y + 3);
     }
 
-    // Owner-colored line (segment color = left point's owner).
+    // Week labels on the x-axis
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#52525b";
+    ctx.font = "9px sans-serif";
+    timeline.forEach((t, i) => {
+      ctx.fillText(String(t.week), X(i), padT + plotH + 13);
+    });
+
+    // Owner-colored line + ownership-change dividers
     ctx.lineWidth = 2;
     for (let i = 1; i < n; i++) {
       ctx.beginPath();
@@ -77,7 +89,6 @@ export function PlayerTimeline({
       ctx.lineTo(X(i), Y(timeline[i].pts));
       ctx.strokeStyle = colorByOwner[timeline[i - 1].ownerId] ?? "#a1a1aa";
       ctx.stroke();
-      // Dashed divider at an ownership change.
       if (timeline[i].ownerId !== timeline[i - 1].ownerId) {
         const dx = (X(i - 1) + X(i)) / 2;
         ctx.setLineDash([4, 4]);
@@ -91,21 +102,61 @@ export function PlayerTimeline({
       }
     }
 
-    // Dots
+    // Dots (hovered one enlarged)
     for (let i = 0; i < n; i++) {
       ctx.beginPath();
-      ctx.arc(X(i), Y(timeline[i].pts), 2.4, 0, Math.PI * 2);
-      ctx.fillStyle = "#e4e4e7";
+      ctx.arc(X(i), Y(timeline[i].pts), i === hover ? 4 : 2.4, 0, Math.PI * 2);
+      ctx.fillStyle = i === hover ? "#fff" : "#e4e4e7";
       ctx.fill();
     }
-  }, [timeline, colorByOwner]);
+  }, [timeline, colorByOwner, niceMax, hover, n, plotH, plotW]);
+
+  function onMove(e: React.MouseEvent<HTMLCanvasElement>) {
+    const canvas = ref.current;
+    if (!canvas || n === 0) return;
+    const rect = canvas.getBoundingClientRect();
+    const ix = ((e.clientX - rect.left) * W) / rect.width;
+    let best = 0;
+    let bestD = Infinity;
+    for (let i = 0; i < n; i++) {
+      const d = Math.abs(X(i) - ix);
+      if (d < bestD) {
+        bestD = d;
+        best = i;
+      }
+    }
+    setHover(best);
+  }
+
+  const hp = hover != null ? timeline[hover] : null;
 
   return (
-    <canvas
-      ref={ref}
-      width={680}
-      height={180}
-      style={{ width: "100%", height: "auto", display: "block" }}
-    />
+    <div className="relative">
+      <canvas
+        ref={ref}
+        width={W}
+        height={H}
+        onMouseMove={onMove}
+        onMouseLeave={() => setHover(null)}
+        style={{ width: "100%", height: "auto", display: "block" }}
+      />
+      {hp && (
+        <div
+          className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-[130%] whitespace-nowrap rounded-lg border border-zinc-700 bg-zinc-950 px-2.5 py-1.5 text-xs shadow-lg"
+          style={{
+            left: `${(X(hover!) / W) * 100}%`,
+            top: `${(Y(hp.pts) / H) * 100}%`,
+          }}
+        >
+          <div className="font-medium text-white">
+            {hp.seasonLabel} · Wk {hp.week}
+          </div>
+          <div className="text-zinc-300">{hp.pts.toFixed(1)} pts</div>
+          <div className={hp.started ? "text-emerald-400" : "text-red-400"}>
+            {hp.started ? "Started" : "Benched"}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
