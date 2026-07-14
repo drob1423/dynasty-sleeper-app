@@ -139,14 +139,32 @@ export async function getPositionStrength(
         return Math.max(1, count("WR"));
       case "TE":
         return Math.max(1, count("TE"));
-      // Flex = the whole skill-position starting lineup.
+      // Flex = just the flex slots — filled by the best flex-eligible players
+      // AFTER each team's RB/WR/TE starters are set aside (below).
       case "FLEX":
-        return Math.max(
-          1,
-          count("RB") + count("WR") + count("TE") + flexSlots
-        );
+        return Math.max(1, flexSlots);
     }
   };
+
+  // Each team's dedicated RB/WR/TE starters (top-N by PPG at each position).
+  // These anchor their own position cards, so the Flex card excludes them —
+  // Flex measures the flex pieces behind the studs, not the studs again.
+  const dedicatedByRoster = new Map<number, Set<string>>();
+  for (const r of currentRosters) {
+    const set = new Set<string>();
+    for (const pos of ["RB", "WR", "TE"] as const) {
+      (r.players ?? [])
+        .filter(
+          (pid) =>
+            playerMap[pid]?.position === pos &&
+            (games.get(pid) ?? 0) >= MIN_GAMES
+        )
+        .sort((a, b) => ppgOf(b) - ppgOf(a))
+        .slice(0, nFor(pos))
+        .forEach((pid) => set.add(pid));
+    }
+    dedicatedByRoster.set(r.roster_id, set);
+  }
 
   const result: PositionStrength[] = RANKED_GROUPS.map((group) => {
     const position = group.key;
@@ -168,8 +186,12 @@ export async function getPositionStrength(
 
     const teams: TeamRoom[] = currentRosters.map((r) => {
       const u = r.owner_id ? byId.get(r.owner_id) : undefined;
+      const dedicated =
+        position === "FLEX"
+          ? dedicatedByRoster.get(r.roster_id) ?? new Set<string>()
+          : new Set<string>();
       const players: RoomPlayer[] = (rosterPlayers.get(r.roster_id) ?? [])
-        .filter((pid) => posRankOf.has(pid))
+        .filter((pid) => posRankOf.has(pid) && !dedicated.has(pid))
         .map((pid) => ({
           id: pid,
           name: playerMap[pid]?.name ?? pid,

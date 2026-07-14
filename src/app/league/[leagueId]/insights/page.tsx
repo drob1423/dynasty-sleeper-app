@@ -88,7 +88,8 @@ export default function InsightsTab() {
       <p className="pt-1 text-xs text-zinc-600">
         <span className="text-emerald-500/80">Starters (ST)</span> = average
         league rank of the players that fill the lineup slots (QB 2, RB 2, WR 2,
-        TE 1; Flex = the full 7-man RB/WR/TE lineup) — cards rank by this.{" "}
+        TE 1; Flex = the 2 flex pieces left after each team&rsquo;s RB/WR/TE
+        starters are set aside) — cards rank by this.{" "}
         <span className="text-sky-500/80">Bench (BN)</span> = average league
         rank of everyone behind them (·N = how many), so quality depth beats a
         pile of replaceable bodies. Lower is better. Only players with 3+
