@@ -226,9 +226,9 @@ export default function LeaguePage() {
         </section>
 
         <p className="mt-6 text-xs text-zinc-600">
-          Reg = regular-season record · Playoff = medal-game record · PO Apps =
-          playoff appearances · PF/PA = points for/against · the smaller number
-          under PF is points behind the top scorer · 🥇🥈🥉 = season finish.
+          Record = regular-season record, with the playoff (PO) record beneath
+          · PF/PA = points for/against · the smaller number under PF is points
+          behind the top scorer · 🥇🥈🥉 = season finish.
         </p>
       </div>
     </>
@@ -318,38 +318,17 @@ function AllTimeTable({ rows }: { rows: AllTimeTableRow[] }) {
 
   return (
     <div className="overflow-x-auto rounded-2xl border border-zinc-800 bg-zinc-900">
-      <table className="w-full min-w-[460px] text-sm">
+      <table className="w-full min-w-[360px] text-sm">
         <thead>
-          {/* Group header row */}
-          <tr className="text-xs uppercase tracking-wide text-zinc-400">
-            <th className="px-4 pt-3 pb-1" />
-            <th className="px-2 pt-3 pb-1" />
-            <th
-              className={`px-2 pt-3 pb-1 text-center font-semibold text-emerald-400 ${groupEdge}`}
-              colSpan={3}
-            >
-              Regular Season
-            </th>
-            <th
-              className={`px-2 pt-3 pb-1 text-center font-semibold text-amber-400 ${groupEdge}`}
-              colSpan={2}
-            >
-              Playoffs
-            </th>
-          </tr>
-          {/* Sub-header row */}
           <tr className="border-b border-zinc-800 text-left text-xs uppercase tracking-wide text-zinc-500">
-            <th className="px-4 pb-3 font-medium">Team</th>
-            <th className="px-2 pb-3 text-center font-medium">Szn</th>
-            <th className={`px-2 pb-3 text-center font-medium ${groupEdge}`}>
+            <th className="px-4 py-3 font-medium">Team</th>
+            <th className="px-2 py-3 text-center font-medium">Szn</th>
+            <th className={`px-2 py-3 text-center font-medium ${groupEdge}`}>
               Record
+              <span className="ml-1 font-normal text-zinc-600">/ PO</span>
             </th>
-            <th className="px-2 pb-3 text-right font-medium">PF</th>
-            <th className="px-2 pb-3 text-right font-medium">PA</th>
-            <th className={`px-2 pb-3 text-center font-medium ${groupEdge}`}>
-              Record
-            </th>
-            <th className="px-2 pb-3 text-center font-medium">Apps</th>
+            <th className="px-2 py-3 text-right font-medium">PF</th>
+            <th className="px-2 py-3 text-right font-medium">PA</th>
           </tr>
         </thead>
         <tbody>
@@ -378,10 +357,19 @@ function AllTimeTable({ rows }: { rows: AllTimeTableRow[] }) {
                 <td className="px-2 py-3 text-center align-top text-zinc-300">
                   {row.seasons}
                 </td>
-                <td
-                  className={`px-2 py-3 text-center align-top font-medium text-white ${groupEdge}`}
-                >
-                  {row.reg}
+                <td className={`px-2 py-3 text-center align-top ${groupEdge}`}>
+                  <div className="font-medium text-white">{row.reg}</div>
+                  <div
+                    className="mt-0.5 whitespace-nowrap text-xs"
+                    title={`Playoff record (${row.mainApps} appearance${
+                      row.mainApps === 1 ? "" : "s"
+                    })`}
+                  >
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
+                      PO{" "}
+                    </span>
+                    <span className="text-amber-300">{row.playoff}</span>
+                  </div>
                 </td>
                 <td className="px-2 py-3 text-right align-top text-zinc-300">
                   <div>{row.pf.toFixed(1)}</div>
@@ -396,14 +384,6 @@ function AllTimeTable({ rows }: { rows: AllTimeTableRow[] }) {
                 </td>
                 <td className="px-2 py-3 text-right align-top text-zinc-400">
                   {row.pa.toFixed(1)}
-                </td>
-                <td
-                  className={`px-2 py-3 text-center align-top font-medium text-white ${groupEdge}`}
-                >
-                  {row.playoff}
-                </td>
-                <td className="px-2 py-3 text-center align-top text-zinc-300">
-                  {row.mainApps}
                 </td>
               </tr>
             );
