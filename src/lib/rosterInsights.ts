@@ -24,7 +24,9 @@ export type TradeDetail = {
 
 export type Acquisition = {
   method: "draft" | "trade" | "waiver" | "free_agent" | "unknown";
-  label: string; // compact, e.g. "Draft R5.42", "Trade '25", "Waiver $11"
+  label: string; // compact, e.g. "Draft R5.42", "Trade", "Waiver $11"
+  week?: number; // NFL week (for in-season adds)
+  dateMs?: number; // when the add processed
   trade?: TradeDetail;
 };
 
@@ -185,10 +187,13 @@ export async function getRosterInsights(
           if (!rosterSet.has(pid)) continue;
           if (ownerByRoster.get(adds[pid]) !== ownerId) continue;
           const order = si * 100 + wi;
+          const dateMs = t.status_updated ?? t.created ?? undefined;
           if (t.type === "trade") {
             noteAcq(pid, order, {
               method: "trade",
-              label: `Trade '${season.season.slice(2)}`,
+              label: "Trade",
+              week: wi,
+              dateMs,
               trade: buildTrade(
                 t,
                 season.season,
@@ -204,9 +209,16 @@ export async function getRosterInsights(
             noteAcq(pid, order, {
               method: "waiver",
               label: bid ? `Waiver $${bid}` : "Waiver",
+              week: wi,
+              dateMs,
             });
           } else {
-            noteAcq(pid, order, { method: "free_agent", label: "Free agent" });
+            noteAcq(pid, order, {
+              method: "free_agent",
+              label: "Free agent",
+              week: wi,
+              dateMs,
+            });
           }
         }
       }

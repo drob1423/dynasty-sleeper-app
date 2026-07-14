@@ -155,12 +155,19 @@ export function RosterView({
                       {isTrade ? (
                         <button
                           onClick={() => toggle(p.id)}
-                          className="text-sky-400 hover:text-sky-300"
+                          className="text-left text-sky-400 hover:text-sky-300"
                         >
-                          {acq.label} · {expanded.has(p.id) ? "hide" : "details"}
+                          {acq.label}
+                          {acqMeta(acq) && (
+                            <span className="text-zinc-500"> · {acqMeta(acq)}</span>
+                          )}{" "}
+                          · {expanded.has(p.id) ? "hide" : "details"}
                         </button>
                       ) : (
-                        <span className="text-zinc-500">{acq.label}</span>
+                        <span className="text-zinc-500">
+                          <span className="text-zinc-400">{acq.label}</span>
+                          {acqMeta(acq) && <> · {acqMeta(acq)}</>}
+                        </span>
                       )}
                       {isTrade && expanded.has(p.id) && acq.trade && (
                         <div className="mt-1.5 space-y-1 rounded-lg bg-zinc-950/60 p-2.5">
@@ -190,6 +197,25 @@ export function RosterView({
       ))}
     </div>
   );
+}
+
+// "Wk 1 · Sep 3, 2025" for in-season adds.
+function acqMeta(acq: {
+  week?: number;
+  dateMs?: number;
+}): string {
+  const parts: string[] = [];
+  if (acq.week != null) parts.push(acq.week >= 1 ? `Wk ${acq.week}` : "Offseason");
+  if (acq.dateMs) {
+    parts.push(
+      new Date(acq.dateMs).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    );
+  }
+  return parts.join(" · ");
 }
 
 function StatCluster({
