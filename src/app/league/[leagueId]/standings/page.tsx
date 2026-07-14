@@ -361,14 +361,7 @@ function AllTimeTable({ rows }: { rows: AllTimeTableRow[] }) {
               <tr key={row.key} className="border-b border-zinc-800/60 last:border-0">
                 <td className="px-4 py-3 align-top text-zinc-500">{i + 1}</td>
                 <td className="px-4 py-3">
-                  <div className="font-medium text-white">
-                    @{row.handle}
-                    {row.isCommish && (
-                      <span className="ml-2 rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] uppercase text-zinc-400">
-                        Commish
-                      </span>
-                    )}
-                  </div>
+                  <div className="font-medium text-white">@{row.handle}</div>
                   {row.medals.length > 0 && (
                     <div className="mt-1">
                       <Medals medals={row.medals} />
