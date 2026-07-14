@@ -52,17 +52,20 @@ export type TeamRoom = {
   teamName: string;
   logo: string | null;
   isMe: boolean;
-  score: number; // Σ PPG of the startable core (higher = stronger)
-  rank: number; // team's rank among the league for this position
-  starters: number; // how many players counted toward the score (N)
+  starterScore: number; // Σ PPG of the startable core (top-N)
+  depthScore: number; // Σ PPG of the productive players behind the starters
+  rank: number; // team's rank (by starter strength) for this position
+  starterCount: number; // how many players counted as starters (≤ N)
+  depthCount: number; // how many players counted as depth
   players: RoomPlayer[]; // ranked contributors, best first; starters flagged
 };
 
 export type PositionStrength = {
   position: RankedPosition;
-  teams: TeamRoom[]; // ranked, strongest first
-  starters: number; // # of players that count toward the score (N)
-  leagueMax: number; // best score in the league (for bar scaling)
+  teams: TeamRoom[]; // ranked by starter strength, strongest first
+  starters: number; // starting slots at this position (N)
+  leagueMaxStarter: number; // best starter score (for bar scaling)
+  leagueMaxDepth: number; // best depth score (for bar scaling)
 };
 
 export async function getPositionStrength(
@@ -122,17 +125,18 @@ export async function getPositionStrength(
   const count = (p: string) => slots.filter((s) => s === p).length;
   const flexSlots =
     count("FLEX") + count("WRRB_FLEX") + count("REC_FLEX") + count("WRRB_WRT");
+  // N = the players you actually start at the position. Everything productive
+  // beyond N is depth.
   const nFor = (key: RankedPosition): number => {
     switch (key) {
       case "QB":
         return Math.max(1, count("QB"));
-      // Single positions: dedicated slots + one, so a startable backup counts.
       case "RB":
-        return Math.max(1, count("RB")) + 1;
+        return Math.max(1, count("RB"));
       case "WR":
-        return Math.max(1, count("WR")) + 1;
+        return Math.max(1, count("WR"));
       case "TE":
-        return Math.max(1, count("TE")) + 1;
+        return Math.max(1, count("TE"));
       // Flex = the whole skill-position starting lineup.
       case "FLEX":
         return Math.max(
@@ -174,28 +178,33 @@ export async function getPositionStrength(
           isStarter: false,
         }))
         .sort((a, b) => b.ppg - a.ppg);
-      // The top-N producers are the startable core that scores the room.
+      // The top-N producers are the startable core; the rest is depth.
       players.forEach((p, i) => (p.isStarter = i < N));
       const core = players.slice(0, N);
-      const score = core.reduce((s, p) => s + p.ppg, 0);
+      const bench = players.slice(N);
+      const starterScore = core.reduce((s, p) => s + p.ppg, 0);
+      const depthScore = bench.reduce((s, p) => s + p.ppg, 0);
       return {
         rosterId: r.roster_id,
         handle: u?.display_name || "unknown",
         teamName: u?.team_name || u?.display_name || "Unknown",
         logo: u?.teamAvatar ?? null,
         isMe: !!myUserId && r.owner_id === myUserId,
-        score,
+        starterScore,
+        depthScore,
         rank: 0,
-        starters: core.length,
+        starterCount: core.length,
+        depthCount: bench.length,
         players,
       };
     });
 
-    // Sort by startable firepower (higher = stronger).
-    teams.sort((a, b) => b.score - a.score);
+    // Rank by starter strength (the headline); depth shown alongside.
+    teams.sort((a, b) => b.starterScore - a.starterScore);
     teams.forEach((t, i) => (t.rank = i + 1));
-    const leagueMax = teams.length ? teams[0].score : 0;
-    return { position, teams, starters: N, leagueMax };
+    const leagueMaxStarter = teams.reduce((m, t) => Math.max(m, t.starterScore), 0);
+    const leagueMaxDepth = teams.reduce((m, t) => Math.max(m, t.depthScore), 0);
+    return { position, teams, starters: N, leagueMaxStarter, leagueMaxDepth };
   });
 
   return result;

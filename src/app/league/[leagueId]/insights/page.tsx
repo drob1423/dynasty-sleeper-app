@@ -68,8 +68,10 @@ export default function InsightsTab() {
       <div>
         <h2 className="text-lg font-semibold text-white">Positional Strength</h2>
         <p className="mt-1 text-sm text-zinc-400">
-          Every team&rsquo;s position group ranked by the scoring of its
-          startable core — the players that actually fill the lineup.
+          Every team&rsquo;s position group split into two: the scoring of its{" "}
+          <span className="text-emerald-400">starters</span> (who fills the
+          lineup) and its <span className="text-sky-400">depth</span> (the
+          productive players behind them). Ranked by starter strength.
         </p>
       </div>
 
@@ -84,10 +86,12 @@ export default function InsightsTab() {
       ))}
 
       <p className="pt-1 text-xs text-zinc-600">
-        Score = Σ PPG of a team&rsquo;s top starters at the position (N from the
-        league&rsquo;s lineup slots); Flex spans the full RB/WR/TE starting
-        lineup. Only players with 3+ scoring games count. Tenure-neutral, so
-        rookies compare fairly and hoarding depth doesn&rsquo;t inflate a team.
+        <span className="text-emerald-500/80">Starters (ST)</span> = Σ PPG of
+        the top players that fill the lineup slots (QB 2, RB 2, WR 2, TE 1;
+        Flex = the full 7-man RB/WR/TE lineup).{" "}
+        <span className="text-sky-500/80">Depth (DP)</span> = Σ PPG of every
+        productive player behind them (the ·N is how many). Only players with
+        3+ scoring games count; tenure-neutral, so rookies compare fairly.
       </p>
     </div>
   );
@@ -111,11 +115,12 @@ function PositionCard({
         <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-300">
           {POS_LABEL[pos.position] ?? pos.position}
           <span className="ml-1.5 text-zinc-600">
-            · top {pos.starters}
+            · {pos.starters} starter{pos.starters === 1 ? "" : "s"}
           </span>
         </h3>
-        <span className="text-[10px] uppercase tracking-wide text-zinc-600">
-          Σ PPG
+        <span className="flex gap-3 text-[10px] uppercase tracking-wide">
+          <span className="text-emerald-500/80">Starters</span>
+          <span className="text-sky-500/80">Depth</span>
         </span>
       </div>
       <div>
@@ -125,7 +130,8 @@ function PositionCard({
             t={t}
             rank={i + 1}
             total={n}
-            max={pos.leagueMax}
+            maxStarter={pos.leagueMaxStarter}
+            maxDepth={pos.leagueMaxDepth}
             leagueId={leagueId}
             expanded={open.has(`${pos.position}-${t.rosterId}`)}
             onToggle={() => toggle(`${pos.position}-${t.rosterId}`)}
@@ -136,11 +142,51 @@ function PositionCard({
   );
 }
 
+// One labeled metric bar (Starters / Depth) with its value at the end.
+function BarLine({
+  label,
+  value,
+  pct,
+  barClass,
+  valueClass,
+  count,
+}: {
+  label: string;
+  value: number;
+  pct: number;
+  barClass: string;
+  valueClass: string;
+  count?: number;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-5 shrink-0 text-[9px] font-semibold uppercase tracking-wide text-zinc-600">
+        {label}
+      </span>
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-zinc-800">
+        <div
+          className={`h-full rounded-full ${barClass}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span
+        className={`w-16 shrink-0 text-right text-xs font-semibold tabular-nums ${valueClass}`}
+      >
+        {value > 0 ? value.toFixed(1) : "—"}
+        {count != null && value > 0 && (
+          <span className="text-zinc-600"> ·{count}</span>
+        )}
+      </span>
+    </div>
+  );
+}
+
 function RoomRow({
   t,
   rank,
   total,
-  max,
+  maxStarter,
+  maxDepth,
   leagueId,
   expanded,
   onToggle,
@@ -148,29 +194,16 @@ function RoomRow({
   t: TeamRoom;
   rank: number;
   total: number;
-  max: number;
+  maxStarter: number;
+  maxDepth: number;
   leagueId: string;
   expanded: boolean;
   onToggle: () => void;
 }) {
-  // Fuller bar = stronger core. Scale against the league's best room.
-  const pct = max > 0 ? Math.max(2, (t.score / max) * 100) : 0;
-  // Strength tier by rank: top third green, bottom third red, middle neutral.
-  const third = Math.ceil(total / 3);
-  const tier =
-    rank <= third ? "emerald" : rank > total - third ? "red" : "zinc";
-  const bar =
-    tier === "emerald"
-      ? "bg-emerald-500/70"
-      : tier === "red"
-      ? "bg-red-500/60"
-      : "bg-zinc-500/50";
-  const scoreColor =
-    tier === "emerald"
-      ? "text-emerald-400"
-      : tier === "red"
-      ? "text-red-400"
-      : "text-zinc-300";
+  const startPct =
+    maxStarter > 0 ? Math.max(2, (t.starterScore / maxStarter) * 100) : 0;
+  const depthPct =
+    maxDepth > 0 ? Math.max(t.depthScore > 0 ? 2 : 0, (t.depthScore / maxDepth) * 100) : 0;
 
   return (
     <div
@@ -198,35 +231,36 @@ function RoomRow({
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
+          <div className="mb-1 flex items-center gap-1.5">
             <span className="truncate text-sm font-medium text-white">
               {t.handle}
             </span>
             {rank === 1 && (
               <span className="shrink-0 rounded-full border border-emerald-900 bg-emerald-950/50 px-1.5 py-px text-[9px] uppercase tracking-wide text-emerald-400">
-                Deepest
+                Best starters
               </span>
             )}
             {rank === total && (
               <span className="shrink-0 rounded-full border border-red-900 bg-red-950/40 px-1.5 py-px text-[9px] uppercase tracking-wide text-red-400">
-                Thinnest
+                Weakest
               </span>
             )}
           </div>
-          <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-zinc-800">
-            <div
-              className={`h-full rounded-full ${bar}`}
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-        </div>
-        <div className="shrink-0 text-right">
-          <div className={`text-sm font-bold tabular-nums ${scoreColor}`}>
-            {t.score > 0 ? t.score.toFixed(1) : "—"}
-          </div>
-          <div className="text-[10px] text-zinc-600">
-            {t.players.length} {t.players.length === 1 ? "player" : "players"}
-          </div>
+          <BarLine
+            label="ST"
+            value={t.starterScore}
+            pct={startPct}
+            barClass="bg-emerald-500/70"
+            valueClass="text-emerald-300"
+          />
+          <BarLine
+            label="DP"
+            value={t.depthScore}
+            pct={depthPct}
+            barClass="bg-sky-500/60"
+            valueClass="text-sky-300/90"
+            count={t.depthCount}
+          />
         </div>
       </button>
 
