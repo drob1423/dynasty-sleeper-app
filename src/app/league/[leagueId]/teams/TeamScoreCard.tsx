@@ -50,11 +50,11 @@ export function TeamScoreCard({
         </div>
         <div className="min-w-0 flex-1">
           <div className="truncate text-base font-semibold text-white">
-            {t.teamName}
+            {t.handle}
             {t.place && <span className="ml-1">{medalEmoji(t.place)}</span>}
           </div>
           <div className="truncate text-xs text-zinc-500">
-            @{t.handle}
+            {t.teamName}
             {t.lastRank && t.lastSeason && (
               <> · {t.lastSeason} {ordinal(t.lastRank)}</>
             )}
