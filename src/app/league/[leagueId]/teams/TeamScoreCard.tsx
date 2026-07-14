@@ -11,10 +11,12 @@ export function TeamScoreCard({
   t,
   href,
   highlight,
+  extra,
 }: {
   t: TeamCard;
   href?: string;
   highlight?: boolean;
+  extra?: React.ReactNode;
 }) {
   const cls = [
     "block rounded-2xl border p-5 transition-colors",
@@ -107,6 +109,9 @@ export function TeamScoreCard({
           }
         />
       </div>
+
+      {/* Optional inline section (e.g. positional strength on My Team) */}
+      {extra}
 
       {/* Your head-to-head vs this team (hidden on your own card) */}
       <H2HStrip rec={t.h2h} />

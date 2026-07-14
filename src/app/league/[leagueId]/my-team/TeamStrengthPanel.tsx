@@ -5,11 +5,11 @@ import { supabase } from "@/lib/supabase";
 import { getRoomStrength } from "@/lib/roomStrength";
 
 const POS_CHIP: Record<string, string> = {
-  QB: "border-rose-500/30 bg-rose-500/15 text-rose-300",
-  RB: "border-emerald-500/30 bg-emerald-500/15 text-emerald-300",
-  WR: "border-sky-500/30 bg-sky-500/15 text-sky-300",
-  TE: "border-amber-500/30 bg-amber-500/15 text-amber-300",
-  FLEX: "border-violet-500/30 bg-violet-500/15 text-violet-300",
+  QB: "bg-rose-500/10 text-rose-300/90",
+  RB: "bg-emerald-500/10 text-emerald-300/90",
+  WR: "bg-sky-500/10 text-sky-300/90",
+  TE: "bg-amber-500/10 text-amber-300/90",
+  FLEX: "bg-violet-500/10 text-violet-300/90",
 };
 
 type Row = { pos: string; label: string; rank: number | null; total: number };
@@ -74,51 +74,35 @@ export function TeamStrengthPanel({ leagueId }: { leagueId: string }) {
 
   if (loading || !rows.length) return null;
 
-  const ranked = rows.filter((r) => r.rank != null) as (Row & { rank: number })[];
-  const best = ranked.length ? ranked.reduce((a, b) => (b.rank < a.rank ? b : a)) : null;
-  const worst = ranked.length ? ranked.reduce((a, b) => (b.rank > a.rank ? b : a)) : null;
-
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">Team Strength</h3>
+    <div className="mt-4 rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-3 py-2.5">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
+          Positional strength
+        </span>
         {overall && (
-          <span className="rounded-full bg-zinc-800 px-2.5 py-1 text-xs font-semibold text-white">
-            #{overall.rank} of {overall.total} overall
+          <span className="text-[10px] font-bold text-zinc-200">
+            #{overall.rank}
+            <span className="font-normal text-zinc-600"> of {overall.total} overall</span>
           </span>
         )}
       </div>
-
-      <div className="grid grid-cols-5 gap-2">
+      <div className="grid grid-cols-5 gap-1.5">
         {rows.map((r) => {
           const t = tier(r.rank, r.total);
           return (
-            <div key={r.pos} className="rounded-xl bg-zinc-950/50 p-3 text-center">
-              <span className={`inline-block rounded border px-1.5 py-0.5 text-[10px] font-bold ${POS_CHIP[r.pos] ?? "border-zinc-600 text-zinc-300"}`}>
+            <div key={r.pos} className="overflow-hidden rounded-lg bg-zinc-900">
+              <div className={`py-1.5 text-center text-[9px] font-bold ${POS_CHIP[r.pos] ?? "text-zinc-400"}`}>
                 {r.pos}
-              </span>
-              <div className={`mt-2 text-2xl font-bold tabular-nums ${TIER_TEXT[t]}`}>
+              </div>
+              <div className={`pb-1.5 text-center text-base font-bold tabular-nums ${TIER_TEXT[t]}`}>
                 {r.rank ? `#${r.rank}` : "—"}
               </div>
-              <div className="text-[10px] text-zinc-600">of {r.total}</div>
-              <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-zinc-800">
-                <div
-                  className={`h-full rounded-full ${TIER_BAR[t]}`}
-                  style={{ width: r.rank ? `${((r.total - r.rank + 1) / r.total) * 100}%` : "0%" }}
-                />
-              </div>
+              <div className={`h-1 ${TIER_BAR[t]}`} style={{ opacity: r.rank ? 1 : 0.2 }} />
             </div>
           );
         })}
       </div>
-
-      {best && worst && best.pos !== worst.pos && (
-        <div className="mt-4 text-xs text-zinc-500">
-          Strongest <span className="font-semibold text-emerald-400">{best.label} (#{best.rank})</span>
-          <span className="mx-2 text-zinc-700">·</span>
-          Weakest <span className="font-semibold text-red-400">{worst.label} (#{worst.rank})</span>
-        </div>
-      )}
     </div>
   );
 }

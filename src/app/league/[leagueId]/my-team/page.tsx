@@ -37,9 +37,7 @@ export default function MyTeamTab() {
 
   return (
     <div className="space-y-6">
-      <TeamScoreCard t={mine} highlight />
-
-      <TeamStrengthPanel leagueId={leagueId} />
+      <TeamScoreCard t={mine} highlight extra={<TeamStrengthPanel leagueId={leagueId} />} />
 
       <div>
         <h3 className="mb-3 text-lg font-semibold text-white">Your Roster</h3>
