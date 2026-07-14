@@ -273,6 +273,36 @@ export async function getPlayerProfile(
       )
     );
 
+    // For weeks where the player scored 0 while rostered, confirm whether he
+    // actually played via the weekly stats endpoint (absent = bye/inactive).
+    // Only these few weeks need the extra fetch.
+    const zeroWeeks: number[] = [];
+    perWeek.forEach((ms, wi) => {
+      if (!Array.isArray(ms)) return;
+      for (const m of ms) {
+        const roster: string[] = m.players ?? [];
+        if (roster.includes(playerId)) {
+          if (((m.players_points ?? {})[playerId] ?? 0) === 0)
+            zeroWeeks.push(wi + 1);
+          break;
+        }
+      }
+    });
+    const didNotPlay = new Set<number>();
+    if (zeroWeeks.length > 0) {
+      const checks = await Promise.all(
+        zeroWeeks.map((w) =>
+          fetch(`${BASE}/stats/nfl/regular/${season.season}/${w}`)
+            .then((r) => (r.ok ? r.json() : null))
+            .catch(() => null)
+            .then((st) => ({ w, played: !!(st && st[playerId]) }))
+        )
+      );
+      checks.forEach(({ w, played }) => {
+        if (!played) didNotPlay.add(w);
+      });
+    }
+
     perWeek.forEach((ms, wi) => {
       if (!Array.isArray(ms)) return;
       const week = wi + 1;
@@ -299,9 +329,9 @@ export async function getPlayerProfile(
         const started = startersArr.includes(playerId);
         const pts = pp[playerId] ?? 0;
 
-        // A rostered player scoring exactly 0 didn't play (bye or inactive).
-        // Those aren't real start/sit decisions, so skip the week entirely.
-        if (pts === 0) continue;
+        // Skip only true bye/inactive weeks (0 pts AND absent from the weekly
+        // stats). A player who played and got blanked still counts.
+        if (pts === 0 && didNotPlay.has(week)) continue;
 
         const order = si * 1000 + week;
         const label = `${season.season} wk${week}`;
