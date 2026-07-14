@@ -2,11 +2,11 @@
 // League positional strength — rank every team's position group (QB/RB/WR/TE)
 // against each other. "Who has the strongest QB room? The weakest RB depth?"
 //
-// Metric: each rostered player's league-wide PPG (points per game they scored
-// in) — tenure-neutral, so a rookie season compares fairly to a veteran's.
-// A team's room score for a position = the sum of its players' PPG. This is
-// depth-inclusive on purpose: in dynasty, a deeper group of producers IS a
-// stronger room (startable assets + trade capital).
+// Metric: every rostered player at a position is ranked league-wide by PPG
+// (points per game they scored in) — tenure-neutral, so a rookie compares
+// fairly to a veteran. A team's room is then scored by the AVERAGE positional
+// rank of its players (lower = stronger). This measures quality of the room,
+// not quantity — hoarding replaceable bodies doesn't inflate a team.
 // ---------------------------------------------------------------------------
 
 import {
@@ -24,8 +24,8 @@ const BASE = "https://api.sleeper.app/v1";
 export const RANKED_POSITIONS = ["QB", "RB", "WR", "TE"] as const;
 export type RankedPosition = (typeof RANKED_POSITIONS)[number];
 
-// A player must have produced in at least this many games to count toward a
-// room score, so 1–2 game flukes don't distort a group.
+// A player must have produced in at least this many games to be ranked, so
+// 1–2 game flukes don't distort the pool.
 const MIN_GAMES = 3;
 
 export type RoomPlayer = {
@@ -34,6 +34,7 @@ export type RoomPlayer = {
   team: string | null;
   ppg: number;
   games: number;
+  posRank: number; // league-wide positional rank (1 = best)
 };
 
 export type TeamRoom = {
@@ -42,15 +43,15 @@ export type TeamRoom = {
   teamName: string;
   logo: string | null;
   isMe: boolean;
-  score: number; // sum of PPG (room firepower)
-  rank: number; // 1 = strongest
-  players: RoomPlayer[]; // qualified contributors, best first
+  avgRank: number | null; // average positional rank of the room (lower = better)
+  rank: number; // team's rank among the league for this position
+  players: RoomPlayer[]; // ranked contributors, best first
 };
 
 export type PositionStrength = {
   position: RankedPosition;
   teams: TeamRoom[]; // ranked, strongest first
-  leagueMax: number; // for bar scaling
+  pool: number; // # of ranked players at this position (for bar scaling)
 };
 
 export async function getPositionStrength(
@@ -99,37 +100,62 @@ export async function getPositionStrength(
 
   const byId = new Map(users.map((u) => [u.user_id, u]));
 
-  // Build each team's room per position.
+  // Currently-rostered players by roster.
+  const rosterPlayers = new Map<number, string[]>(
+    currentRosters.map((r) => [r.roster_id, r.players ?? []])
+  );
+
   const result: PositionStrength[] = RANKED_POSITIONS.map((position) => {
+    // Rank every qualifying rostered player at this position, league-wide.
+    const ranked = currentRosters
+      .flatMap((r) => r.players ?? [])
+      .filter(
+        (pid) =>
+          playerMap[pid]?.position === position &&
+          (games.get(pid) ?? 0) >= MIN_GAMES
+      )
+      .map((pid) => ({ pid, ppg: ppgOf(pid) }))
+      .sort((a, b) => b.ppg - a.ppg);
+    const posRankOf = new Map<string, number>();
+    ranked.forEach((x, i) => posRankOf.set(x.pid, i + 1));
+    const pool = ranked.length;
+
     const teams: TeamRoom[] = currentRosters.map((r) => {
       const u = r.owner_id ? byId.get(r.owner_id) : undefined;
-      const players: RoomPlayer[] = (r.players ?? [])
-        .filter((pid) => playerMap[pid]?.position === position)
+      const players: RoomPlayer[] = (rosterPlayers.get(r.roster_id) ?? [])
+        .filter((pid) => posRankOf.has(pid))
         .map((pid) => ({
           id: pid,
           name: playerMap[pid]?.name ?? pid,
           team: playerMap[pid]?.team ?? null,
           ppg: ppgOf(pid),
           games: games.get(pid) ?? 0,
+          posRank: posRankOf.get(pid)!,
         }))
-        .filter((p) => p.games >= MIN_GAMES)
-        .sort((a, b) => b.ppg - a.ppg);
-      const score = players.reduce((s, p) => s + p.ppg, 0);
+        .sort((a, b) => a.posRank - b.posRank);
+      const avgRank =
+        players.length > 0
+          ? players.reduce((s, p) => s + p.posRank, 0) / players.length
+          : null;
       return {
         rosterId: r.roster_id,
         handle: u?.display_name || "unknown",
         teamName: u?.team_name || u?.display_name || "Unknown",
         logo: u?.teamAvatar ?? null,
         isMe: !!myUserId && r.owner_id === myUserId,
-        score,
+        avgRank,
         rank: 0,
         players,
       };
     });
-    teams.sort((a, b) => b.score - a.score);
+
+    // Sort by average rank (lower = stronger); teams with no qualifying player
+    // sink to the bottom.
+    teams.sort(
+      (a, b) => (a.avgRank ?? Infinity) - (b.avgRank ?? Infinity)
+    );
     teams.forEach((t, i) => (t.rank = i + 1));
-    const leagueMax = teams.length ? teams[0].score : 0;
-    return { position, teams, leagueMax };
+    return { position, teams, pool };
   });
 
   return result;

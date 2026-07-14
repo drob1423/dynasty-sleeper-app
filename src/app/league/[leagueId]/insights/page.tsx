@@ -67,8 +67,8 @@ export default function InsightsTab() {
       <div>
         <h2 className="text-lg font-semibold text-white">Positional Strength</h2>
         <p className="mt-1 text-sm text-zinc-400">
-          Every team&rsquo;s position group ranked by room firepower — the sum
-          of each rostered player&rsquo;s points per game. Depth counts.
+          Every team&rsquo;s position group ranked by the average league
+          position rank of its players. Quality of the room, not quantity.
         </p>
       </div>
 
@@ -83,8 +83,9 @@ export default function InsightsTab() {
       ))}
 
       <p className="pt-1 text-xs text-zinc-600">
-        Room firepower = Σ PPG of rostered {`{QB,RB,WR,TE}`} with 3+ scoring
-        games. Tenure-neutral, so rookies compare fairly to veterans.
+        Each rostered {`{QB,RB,WR,TE}`} with 3+ scoring games is ranked
+        league-wide by PPG; a team&rsquo;s score is its players&rsquo; average
+        rank (lower = better). Tenure-neutral, so rookies compare fairly.
       </p>
     </div>
   );
@@ -110,7 +111,7 @@ function PositionCard({
           <span className="ml-1.5 text-zinc-600">rooms</span>
         </h3>
         <span className="text-[10px] uppercase tracking-wide text-zinc-600">
-          Σ PPG
+          Avg rank
         </span>
       </div>
       <div>
@@ -120,7 +121,7 @@ function PositionCard({
             t={t}
             rank={i + 1}
             total={n}
-            max={pos.leagueMax}
+            pool={pos.pool}
             leagueId={leagueId}
             expanded={open.has(`${pos.position}-${t.rosterId}`)}
             onToggle={() => toggle(`${pos.position}-${t.rosterId}`)}
@@ -135,7 +136,7 @@ function RoomRow({
   t,
   rank,
   total,
-  max,
+  pool,
   leagueId,
   expanded,
   onToggle,
@@ -143,12 +144,16 @@ function RoomRow({
   t: TeamRoom;
   rank: number;
   total: number;
-  max: number;
+  pool: number;
   leagueId: string;
   expanded: boolean;
   onToggle: () => void;
 }) {
-  const pct = max > 0 ? Math.max(2, (t.score / max) * 100) : 0;
+  // Fuller bar = better (lower average rank). Scale against the position pool.
+  const pct =
+    t.avgRank != null && pool > 0
+      ? Math.max(2, ((pool - t.avgRank + 1) / pool) * 100)
+      : 0;
   // Strength tier by rank: top third green, bottom third red, middle neutral.
   const third = Math.ceil(total / 3);
   const tier =
@@ -216,7 +221,7 @@ function RoomRow({
         </div>
         <div className="shrink-0 text-right">
           <div className={`text-sm font-bold tabular-nums ${scoreColor}`}>
-            {t.score.toFixed(1)}
+            {t.avgRank != null ? t.avgRank.toFixed(1) : "—"}
           </div>
           <div className="text-[10px] text-zinc-600">
             {t.players.length} {t.players.length === 1 ? "player" : "players"}
@@ -235,9 +240,16 @@ function RoomRow({
                 href={`/league/${leagueId}/player/${p.id}`}
                 className="flex items-center justify-between gap-2 rounded-lg px-2 py-1 text-xs hover:bg-zinc-800/50"
               >
-                <span className="truncate text-zinc-300">
-                  {p.name}
-                  {p.team && <span className="text-zinc-600"> · {p.team}</span>}
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="w-6 shrink-0 rounded bg-zinc-800 py-0.5 text-center text-[10px] font-semibold tabular-nums text-zinc-400">
+                    {p.posRank}
+                  </span>
+                  <span className="truncate text-zinc-300">
+                    {p.name}
+                    {p.team && (
+                      <span className="text-zinc-600"> · {p.team}</span>
+                    )}
+                  </span>
                 </span>
                 <span className="shrink-0 font-medium tabular-nums text-zinc-400">
                   {p.ppg.toFixed(1)} <span className="text-zinc-600">ppg</span>
