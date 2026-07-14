@@ -279,12 +279,14 @@ function PlaceBar({
 }
 
 // A shared axis so every plot below reads on the same 0..scaleMax points scale.
+// The identity/stats spacers only exist at sm+ where the row is laid out in
+// three columns; on mobile the plot (and this ruler) span the full width.
 function AxisRuler({ scaleMax }: { scaleMax: number }) {
   const ticks: number[] = [];
   for (let v = 0; v <= scaleMax; v += 10) ticks.push(v);
   return (
     <div className="flex items-center gap-3 text-[9px] text-zinc-600">
-      <div className="w-[184px] shrink-0" />
+      <div className="hidden shrink-0 sm:block sm:w-[184px]" />
       <div className="relative h-3 flex-1">
         {ticks.map((v) => (
           <span key={v} className="absolute -translate-x-1/2" style={{ left: `${(v / scaleMax) * 100}%` }}>
@@ -292,7 +294,7 @@ function AxisRuler({ scaleMax }: { scaleMax: number }) {
           </span>
         ))}
       </div>
-      <span className="w-16 shrink-0 text-right">pts/wk</span>
+      <span className="hidden shrink-0 text-right sm:block sm:w-16">pts/wk</span>
     </div>
   );
 }
@@ -300,10 +302,25 @@ function AxisRuler({ scaleMax }: { scaleMax: number }) {
 function PlayerRow({ p, scaleMax, leagueId }: { p: RoomPlayer; scaleMax: number; leagueId: string }) {
   const pct = (v: number) => `${Math.max(0, Math.min(100, (v / scaleMax) * 100))}%`;
   const small = p.gp < 4;
+
+  // Shared avg/med block — shown inline with the name on mobile, and in its own
+  // right-hand column on wider screens.
+  const headline = (
+    <div className="text-right leading-tight tabular-nums">
+      <div className="text-xs">
+        <span className="font-semibold text-white">{p.mean.toFixed(1)}</span>
+        <span className="text-zinc-600"> avg</span>
+      </div>
+      <div className="text-[10px] text-zinc-500">{p.median.toFixed(1)} med</div>
+    </div>
+  );
+
   return (
-    <div className="flex items-center gap-3">
-      {/* identity + numbers (fixed 184px so the axis lines up) */}
-      <div className="flex w-[184px] shrink-0 items-center gap-2">
+    // Mobile: stack — identity + stats on one line, the plot full-width below.
+    // sm+: the original three columns (184px identity · plot · 64px stats).
+    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+      {/* identity (+ stats on mobile) */}
+      <div className="flex w-full items-center gap-2 sm:w-[184px] sm:shrink-0">
         <span
           className={`w-7 shrink-0 rounded py-0.5 text-center text-[10px] font-semibold ${
             p.isStarter ? "bg-emerald-950/60 text-emerald-400" : "bg-zinc-800 text-zinc-500"
@@ -319,50 +336,49 @@ function PlayerRow({ p, scaleMax, leagueId }: { p: RoomPlayer; scaleMax: number;
             {p.team ?? "FA"} · {p.gp} gp{small && " · small"}
           </div>
         </div>
+        {/* stats live here on mobile only */}
+        <div className="shrink-0 sm:hidden">{headline}</div>
       </div>
 
-      {/* the plot — box/whisker with value labels along the top edge */}
-      <div className="relative h-12 flex-1">
+      {/* the plot — box range labelled above, worst/best below, so labels never
+          collide even when the plot is narrow. w-full on mobile so flex-col
+          doesn't collapse its height; flex-1 for width at sm+. */}
+      <div className="relative h-14 w-full sm:flex-1">
         {Array.from({ length: Math.floor(scaleMax / 10) + 1 }, (_, k) => k * 10).map((v) => (
-          <div key={v} className="absolute top-3 bottom-0 w-px bg-zinc-800/70" style={{ left: pct(v) }} />
+          <div key={v} className="absolute top-4 bottom-4 w-px bg-zinc-800/70" style={{ left: pct(v) }} />
         ))}
         {/* range whisker */}
-        <div className="absolute top-[calc(50%+6px)] h-px -translate-y-1/2 bg-zinc-600" style={{ left: pct(p.min), width: `calc(${pct(p.max)} - ${pct(p.min)})` }} />
+        <div className="absolute top-1/2 h-px -translate-y-1/2 bg-zinc-600" style={{ left: pct(p.min), width: `calc(${pct(p.max)} - ${pct(p.min)})` }} />
         {/* interquartile box */}
         <div
-          className={`absolute top-[calc(50%+6px)] h-4 -translate-y-1/2 rounded border ${
+          className={`absolute top-1/2 h-4 -translate-y-1/2 rounded border ${
             p.isStarter ? "border-emerald-700/70 bg-emerald-500/15" : "border-sky-800/70 bg-sky-500/12"
           }`}
           style={{ left: pct(p.q1), width: `calc(${pct(p.q3)} - ${pct(p.q1)})` }}
         />
         {/* median */}
-        <div className="absolute top-[calc(50%+6px)] h-5 w-0.5 -translate-y-1/2 bg-zinc-100" style={{ left: pct(p.median) }} title={`median ${p.median}`} />
+        <div className="absolute top-1/2 h-5 w-0.5 -translate-y-1/2 bg-zinc-100" style={{ left: pct(p.median) }} title={`median ${p.median}`} />
         {/* mean */}
         <div
-          className="absolute top-[calc(50%+6px)] h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rotate-45 border border-white bg-zinc-900"
+          className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rotate-45 border border-white bg-zinc-900"
           style={{ left: pct(p.mean) }}
           title={`average ${p.mean}`}
         />
-        {/* value labels along the top: worst/best at the ends, middle-50% centered over the box */}
-        <span className="absolute top-0 -translate-x-1/2 text-[9px] tabular-nums text-zinc-500" style={{ left: pct(p.min) }}>
-          {p.min.toFixed(1)}
-        </span>
+        {/* middle-50% range, centered above the box */}
         <span className="absolute top-0 -translate-x-1/2 text-[9px] tabular-nums text-zinc-400" style={{ left: pct((p.q1 + p.q3) / 2) }}>
           {p.q1.toFixed(1)}–{p.q3.toFixed(1)}
         </span>
-        <span className="absolute top-0 -translate-x-1/2 text-[9px] tabular-nums text-zinc-500" style={{ left: pct(p.max) }}>
+        {/* worst / best game, along the bottom at the whisker ends */}
+        <span className="absolute bottom-0 -translate-x-1/2 text-[9px] tabular-nums text-zinc-500" style={{ left: pct(p.min) }}>
+          {p.min.toFixed(1)}
+        </span>
+        <span className="absolute bottom-0 -translate-x-1/2 text-[9px] tabular-nums text-zinc-500" style={{ left: pct(p.max) }}>
           {p.max.toFixed(1)}
         </span>
       </div>
 
-      {/* headline numbers */}
-      <div className="w-16 shrink-0 text-right leading-tight tabular-nums">
-        <div className="text-xs">
-          <span className="font-semibold text-white">{p.mean.toFixed(1)}</span>
-          <span className="text-zinc-600"> avg</span>
-        </div>
-        <div className="text-[10px] text-zinc-500">{p.median.toFixed(1)} med</div>
-      </div>
+      {/* stats column on wider screens */}
+      <div className="hidden w-16 shrink-0 sm:block">{headline}</div>
     </div>
   );
 }
