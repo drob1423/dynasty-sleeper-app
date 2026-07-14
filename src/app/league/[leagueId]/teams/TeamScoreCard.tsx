@@ -110,6 +110,32 @@ export function TeamScoreCard({
         />
       </div>
 
+      {/* Second row — quality, luck, hardware */}
+      <div className="mt-2 grid grid-cols-3 gap-1 rounded-xl bg-zinc-950/40 py-3">
+        <BigStat
+          label="Points For"
+          value={t.pfRank ? ordinal(t.pfRank) : "—"}
+          sub={t.pf != null ? `${Math.round(t.pf).toLocaleString()} pts` : undefined}
+          color={t.pfRank ? (t.pfRank <= 3 ? "text-emerald-400" : undefined) : undefined}
+        />
+        <BigStat
+          label="Luck"
+          value={t.luck != null ? `${t.luck >= 0 ? "+" : ""}${t.luck.toFixed(1)}` : "—"}
+          color={t.luck == null ? undefined : t.luck >= 0 ? "text-emerald-400" : "text-red-400"}
+          sub={
+            t.expWins != null && t.games != null
+              ? `exp ${Math.round(t.expWins)}-${Math.round(t.games - t.expWins)}`
+              : undefined
+          }
+        />
+        <BigStat
+          label="Titles"
+          value={t.rings > 0 ? `🏆 ${t.rings}` : "—"}
+          color={t.rings > 0 ? "text-amber-400" : undefined}
+          sub={t.silver || t.bronze ? `${t.silver}🥈 ${t.bronze}🥉` : undefined}
+        />
+      </div>
+
       {/* Optional inline section (e.g. positional strength on My Team) */}
       {extra}
 
@@ -208,10 +234,12 @@ function BigStat({
   label,
   value,
   color,
+  sub,
 }: {
   label: string;
   value: string;
   color?: string;
+  sub?: string;
 }) {
   return (
     <div className="px-1 text-center">
@@ -221,6 +249,7 @@ function BigStat({
       <div className={`mt-0.5 text-base font-bold ${color ?? "text-white"}`}>
         {value}
       </div>
+      {sub && <div className="text-[10px] text-zinc-600">{sub}</div>}
     </div>
   );
 }

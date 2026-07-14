@@ -353,6 +353,68 @@ export async function getWeeklyResults(
   return results;
 }
 
+// Luck via all-play: each week, a team's "expected" win credit is the share of
+// the league it outscored (ties = half). Summed over the season, expected wins
+// vs actual head-to-head wins reveals who's been lucky (won more than they
+// deserved) or robbed.
+export async function getSeasonLuck(
+  leagueId: string,
+  throughWeek: number
+): Promise<Map<number, { actual: number; expected: number; games: number }>> {
+  const weeks = Array.from({ length: Math.max(0, throughWeek) }, (_, i) => i + 1);
+  const perWeek = await Promise.all(
+    weeks.map((w) =>
+      fetch(`${BASE}/league/${leagueId}/matchups/${w}`)
+        .then((r) => (r.ok ? r.json() : []))
+        .catch(() => [])
+    )
+  );
+  const out = new Map<number, { actual: number; expected: number; games: number }>();
+  const bump = (rid: number, a: number, e: number, g: number) => {
+    const o = out.get(rid) ?? { actual: 0, expected: 0, games: 0 };
+    o.actual += a;
+    o.expected += e;
+    o.games += g;
+    out.set(rid, o);
+  };
+  for (const ms of perWeek) {
+    if (!Array.isArray(ms)) continue;
+    const scores = ms
+      .filter((m) => m.points != null)
+      .map((m) => ({ rid: m.roster_id as number, pts: m.points as number }));
+    if (scores.length < 2) continue;
+    // All-play expected wins.
+    for (const s of scores) {
+      let beat = 0;
+      for (const o of scores) {
+        if (o.rid === s.rid) continue;
+        if (s.pts > o.pts) beat += 1;
+        else if (s.pts === o.pts) beat += 0.5;
+      }
+      bump(s.rid, 0, beat / (scores.length - 1), 1);
+    }
+    // Actual head-to-head wins.
+    const byMatch = new Map<number, { rid: number; pts: number }[]>();
+    for (const m of ms) {
+      if (m.matchup_id == null || m.points == null) continue;
+      const arr = byMatch.get(m.matchup_id) ?? [];
+      arr.push({ rid: m.roster_id, pts: m.points });
+      byMatch.set(m.matchup_id, arr);
+    }
+    for (const pair of byMatch.values()) {
+      if (pair.length !== 2) continue;
+      const [a, b] = pair;
+      if (a.pts > b.pts) bump(a.rid, 1, 0, 0);
+      else if (b.pts > a.pts) bump(b.rid, 1, 0, 0);
+      else {
+        bump(a.rid, 0.5, 0, 0);
+        bump(b.rid, 0.5, 0, 0);
+      }
+    }
+  }
+  return out;
+}
+
 // Turn a chronological results array into the current trailing streak.
 export function trailingStreak(results: ("W" | "L" | "T")[]): Streak {
   if (results.length === 0) return null;

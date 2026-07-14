@@ -8,6 +8,7 @@ import {
   getRosters,
   getPlayoffResults,
   getWeeklyResults,
+  getSeasonLuck,
   getTransactionStatsForSeason,
   getUserH2H,
   trailingStreak,
@@ -40,6 +41,14 @@ export type TeamCard = {
   trades: number;
   moves: number;
   faab: number | null;
+  pf: number | null; // points for, last completed season
+  pfRank: number | null; // rank by PF that season
+  luck: number | null; // actual − expected wins across the dynasty
+  expWins: number | null; // expected wins (for the sub label)
+  games: number | null; // total regular-season games (for expected record)
+  rings: number; // championships (1st-place finishes)
+  silver: number; // 2nd-place finishes
+  bronze: number; // 3rd-place finishes
 };
 
 // Load every team's scorecard data for a league. Shared by the Rivals tab and
@@ -76,6 +85,8 @@ export async function loadTeamCards(
     weeklyPerSeason,
     h2hMap,
     lastPlayedUsers,
+    luckPerSeason,
+    playoffsPerSeason,
   ] = await Promise.all([
     Promise.all(chain.map((s) => getRosters(s.league_id))),
     Promise.all(chain.map((s) => getTransactionStatsForSeason(s.league_id))),
@@ -93,6 +104,12 @@ export async function loadTeamCards(
     lastPlayed
       ? getLeagueUsers(lastPlayed.league_id)
       : Promise.resolve([] as SleeperManager[]),
+    Promise.all(
+      playedOldestFirst.map((s) =>
+        getSeasonLuck(s.league_id, (s.playoff_week_start || 15) - 1)
+      )
+    ),
+    Promise.all(playedOldestFirst.map((s) => getPlayoffResults(s.league_id))),
   ]);
 
   // Chain each roster's regular-season results across all seasons.
@@ -115,6 +132,40 @@ export async function loadTeamCards(
       dyn.set(r.roster_id, d);
     })
   );
+
+  // Sum luck (actual vs all-play expected wins) across the dynasty.
+  const luckAgg = new Map<number, { actual: number; expected: number; games: number }>();
+  luckPerSeason.forEach((m) =>
+    m.forEach((v, rid) => {
+      const o = luckAgg.get(rid) ?? { actual: 0, expected: 0, games: 0 };
+      o.actual += v.actual;
+      o.expected += v.expected;
+      o.games += v.games;
+      luckAgg.set(rid, o);
+    })
+  );
+
+  // Tally podium finishes across the dynasty.
+  const medals = new Map<number, { g: number; s: number; b: number }>();
+  playoffsPerSeason.forEach((m) =>
+    m.forEach((v, rid) => {
+      const o = medals.get(rid) ?? { g: 0, s: 0, b: 0 };
+      if (v.place === 1) o.g += 1;
+      else if (v.place === 2) o.s += 1;
+      else if (v.place === 3) o.b += 1;
+      medals.set(rid, o);
+    })
+  );
+
+  // Last completed season: points for + rank by PF.
+  const pfByRoster = new Map<number, number>();
+  const pfRankByRoster = new Map<number, number>();
+  if (lastPlayedIndex >= 0) {
+    perSeasonRosters[lastPlayedIndex].forEach((r) => pfByRoster.set(r.roster_id, r.fpts));
+    [...perSeasonRosters[lastPlayedIndex]]
+      .sort((a, b) => b.fpts - a.fpts)
+      .forEach((r, i) => pfRankByRoster.set(r.roster_id, i + 1));
+  }
 
   // Sum trades + moves from the transaction log.
   const trades = new Map<number, number>();
@@ -189,6 +240,17 @@ export async function loadTeamCards(
       tookOverFrom,
       trades: trades.get(r.roster_id) ?? 0,
       moves: moves.get(r.roster_id) ?? 0,
+      pf: pfByRoster.get(r.roster_id) ?? null,
+      pfRank: pfRankByRoster.get(r.roster_id) ?? null,
+      luck: (() => {
+        const l = luckAgg.get(r.roster_id);
+        return l ? l.actual - l.expected : null;
+      })(),
+      expWins: luckAgg.get(r.roster_id)?.expected ?? null,
+      games: luckAgg.get(r.roster_id)?.games ?? null,
+      rings: medals.get(r.roster_id)?.g ?? 0,
+      silver: medals.get(r.roster_id)?.s ?? 0,
+      bronze: medals.get(r.roster_id)?.b ?? 0,
       faab: faabBudget > 0 ? faabBudget - r.waiverBudgetUsed : null,
     };
   });
