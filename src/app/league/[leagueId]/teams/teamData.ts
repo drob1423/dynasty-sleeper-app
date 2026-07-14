@@ -47,15 +47,17 @@ export type TeamCard = {
 export async function loadTeamCards(
   leagueId: string
 ): Promise<{ cards: TeamCard[]; lastSeason: string | null }> {
-  const [auth, currentFull, users, players, chain, memberIds] =
-    await Promise.all([
-      supabase.auth.getUser(),
-      getFullRosters(leagueId),
-      getLeagueUsers(leagueId),
-      getPlayerMap(),
-      getSeasonChain(leagueId),
-      getMemberSleeperIds(),
-    ]);
+  const [auth, currentFull, users, players, chain] = await Promise.all([
+    supabase.auth.getUser(),
+    getFullRosters(leagueId),
+    getLeagueUsers(leagueId),
+    getPlayerMap(),
+    getSeasonChain(leagueId),
+  ]);
+  // Which of this league's owners are on the app (indexed lookup by owner id).
+  const memberIds = await getMemberSleeperIds(
+    currentFull.map((r) => r.owner_id)
+  );
   const byId = new Map(users.map((u: SleeperManager) => [u.user_id, u]));
   const myUserId = auth.data.user?.user_metadata?.sleeper_user_id as
     | string
