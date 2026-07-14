@@ -88,7 +88,7 @@ export function TeamStrengthPanel({ leagueId }: { leagueId: string }) {
         )}
       </div>
 
-      <svg viewBox="0 0 280 196" className="w-full">
+      <svg viewBox="0 0 280 196" className="mx-auto block w-full max-w-[320px]">
         {[0.25, 0.5, 0.75, 1].map((lv, k) => (
           <polygon key={k} points={poly(rows.map(() => lv))} fill="none" stroke="#27272a" strokeWidth="1" />
         ))}
