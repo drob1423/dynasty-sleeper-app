@@ -191,7 +191,7 @@ export default function PlayerProfilePage() {
             </div>
           </div>
           {pstat && (
-            <RatingBadge ppg={pstat.mean} heat={heat} rankLabel={rankLabel} small={pstat.gp < 4} />
+            <RatingBadge ppg={pstat.mean} heat={heat} rankLabel={rankLabel} small={pstat.gp < 10} />
           )}
         </div>
         {pstat && (
