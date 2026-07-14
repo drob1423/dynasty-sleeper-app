@@ -28,6 +28,10 @@ export function TeamScoreCard({
       : "",
   ].join(" ");
 
+  // Record over the last 5 regular-season games.
+  const l5w = t.form.filter((r) => r === "W").length;
+  const l5l = t.form.filter((r) => r === "L").length;
+
   const inner = (
     <>
       {/* Identity */}
@@ -59,7 +63,7 @@ export function TeamScoreCard({
       </div>
 
       {/* Their vitals — all-time first */}
-      <div className="mt-4 grid grid-cols-3 gap-1 rounded-xl bg-zinc-950/40 py-3">
+      <div className="mt-4 grid grid-cols-4 gap-1 rounded-xl bg-zinc-950/40 py-3">
         <BigStat label="All-Time" value={`${t.dynastyW}-${t.dynastyL}`} />
         <BigStat label="This Year" value={`${t.currentW}-${t.currentL}`} />
         <BigStat
@@ -73,17 +77,18 @@ export function TeamScoreCard({
               : undefined
           }
         />
+        <BigStat
+          label="L5"
+          value={t.form.length ? `${l5w}-${l5l}` : "—"}
+          color={
+            l5w > l5l
+              ? "text-emerald-400"
+              : l5l > l5w
+              ? "text-red-400"
+              : undefined
+          }
+        />
       </div>
-
-      {/* Recent form */}
-      {t.form.length > 0 && (
-        <div className="mt-3 flex items-center justify-between">
-          <span className="text-[10px] uppercase tracking-wide text-zinc-500">
-            Recent form
-          </span>
-          <FormGuide form={t.form} />
-        </div>
-      )}
 
       {/* Your head-to-head vs this team (hidden on your own card) */}
       <H2HStrip rec={t.h2h} />
@@ -172,33 +177,13 @@ function BigStat({
   color?: string;
 }) {
   return (
-    <div className="px-2 text-center">
+    <div className="px-1 text-center">
       <div className="text-[10px] uppercase tracking-wide text-zinc-500">
         {label}
       </div>
-      <div className={`mt-0.5 text-lg font-bold ${color ?? "text-white"}`}>
+      <div className={`mt-0.5 text-base font-bold ${color ?? "text-white"}`}>
         {value}
       </div>
-    </div>
-  );
-}
-
-function FormGuide({ form }: { form: ("W" | "L" | "T")[] }) {
-  return (
-    <div className="flex gap-1">
-      {form.map((r, i) => {
-        const cls =
-          r === "W" ? "bg-emerald-500" : r === "L" ? "bg-red-500" : "bg-zinc-500";
-        return (
-          <span
-            key={i}
-            className={`flex h-4 w-4 items-center justify-center rounded-sm text-[9px] font-bold text-black ${cls}`}
-            title={r}
-          >
-            {r}
-          </span>
-        );
-      })}
     </div>
   );
 }
