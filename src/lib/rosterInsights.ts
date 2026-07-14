@@ -94,19 +94,9 @@ export async function getRosterInsights(
           .then((r) => (r.ok ? r.json() : []))
           .catch(() => []);
 
+        // Draft acquisitions for the current owner (drafter === owner).
         if (picks.length > 0) {
-          // Completed draft — resolve slot + the player selected.
           for (const pk of picks) {
-            if (pk.roster_id != null && pk.round != null) {
-              draftPickLookup.set(
-                `${season.season}-${pk.round}-${pk.roster_id}`,
-                {
-                  slot: pk.draft_slot ?? pk.pick_no ?? 0,
-                  playerId: pk.player_id ?? null,
-                  pickedBy: pk.picked_by ?? null,
-                }
-              );
-            }
             if (
               pk.player_id &&
               rosterSet.has(pk.player_id) &&
@@ -118,8 +108,26 @@ export async function getRosterInsights(
               });
             }
           }
-        } else if (d.draft_order) {
-          // Upcoming draft — order set, no picks. Resolve each roster's slot.
+        }
+
+        // Resolve each roster's ORIGINAL pick → slot (+ player if drafted).
+        // Sleeper's pick.roster_id is the DRAFTER, not the pick's original
+        // owner, so a traded pick's slot can't be read off the drafter. The
+        // reliable original-owner→slot map is draft_order; we index the actual
+        // picks by (round, slot) to fill in who was selected.
+        if (d.draft_order) {
+          const slotToPick = new Map<
+            string,
+            { playerId: string | null; pickedBy: string | null }
+          >();
+          for (const pk of picks) {
+            if (pk.draft_slot != null && pk.round != null) {
+              slotToPick.set(`${pk.round}-${pk.draft_slot}`, {
+                playerId: pk.player_id ?? null,
+                pickedBy: pk.picked_by ?? null,
+              });
+            }
+          }
           const rosters = await getRosters(season.league_id);
           const numTeams = rosters.length;
           const isSnake = d.type === "snake";
@@ -131,10 +139,11 @@ export async function getRosterInsights(
             for (let round = 1; round <= rounds; round++) {
               const slot =
                 isSnake && round % 2 === 0 ? numTeams + 1 - baseSlot : baseSlot;
+              const hit = slotToPick.get(`${round}-${slot}`);
               draftPickLookup.set(`${season.season}-${round}-${r.roster_id}`, {
                 slot,
-                playerId: null,
-                pickedBy: null,
+                playerId: hit?.playerId ?? null,
+                pickedBy: hit?.pickedBy ?? null,
               });
             }
           }
