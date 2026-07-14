@@ -142,7 +142,7 @@ function H2HStrip({ rec }: { rec: H2HRecord | null }) {
   return (
     <div className="mt-4 rounded-xl border border-emerald-900/50 bg-emerald-950/20 px-3.5 py-2.5">
       <div className="mb-1.5 text-[10px] uppercase tracking-wide text-zinc-500">
-        Your record vs them
+        H2H Matchup
       </div>
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-[15px]">
