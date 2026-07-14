@@ -175,7 +175,7 @@ function RoomRow({
   return (
     <div
       className={`border-t border-zinc-800/60 ${
-        t.isMe ? "bg-emerald-950/15" : ""
+        t.isMe ? "bg-sky-950/20 ring-1 ring-inset ring-sky-900/50" : ""
       }`}
     >
       <button
@@ -202,6 +202,11 @@ function RoomRow({
             <span className="truncate text-sm font-medium text-white">
               {t.handle}
             </span>
+            {t.isMe && (
+              <span className="shrink-0 rounded-full border border-sky-800 bg-sky-950/50 px-1.5 py-px text-[9px] uppercase tracking-wide text-sky-400">
+                You
+              </span>
+            )}
             {rank === 1 && (
               <span className="shrink-0 rounded-full border border-emerald-900 bg-emerald-950/50 px-1.5 py-px text-[9px] uppercase tracking-wide text-emerald-400">
                 Deepest
