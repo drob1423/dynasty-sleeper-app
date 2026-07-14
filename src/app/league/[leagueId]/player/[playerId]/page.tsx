@@ -152,12 +152,16 @@ export default function PlayerProfilePage() {
               {info?.team && <span className="text-xs font-medium text-zinc-400">{info.team}</span>}
             </div>
             <h1 className="mt-1 truncate text-2xl font-bold text-white">{name}</h1>
-            <div className="text-xs text-zinc-500">
-              {info?.age != null && `${info.age} yrs`}
-              {info?.yearsExp != null &&
-                ` · ${info.yearsExp === 0 ? "Rookie" : `${info.yearsExp} yr exp`}`}
-              {profile && profile.ownerCount > 0 &&
-                ` · ${profile.ownerCount} owner${profile.ownerCount !== 1 ? "s" : ""} in league`}
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              {info?.age != null && <MetaPill>{info.age} yrs</MetaPill>}
+              {info?.yearsExp != null && (
+                <MetaPill>{info.yearsExp === 0 ? "Rookie" : `${info.yearsExp} yr exp`}</MetaPill>
+              )}
+              {profile && profile.ownerCount > 0 && (
+                <MetaPill>
+                  {profile.ownerCount} owner{profile.ownerCount !== 1 ? "s" : ""} in league
+                </MetaPill>
+              )}
             </div>
           </div>
           {pstat && (
@@ -269,6 +273,14 @@ function posAccent(pos?: string | null): { badge: string; wash: string } {
     case "TE": return { badge: "border-amber-500/40 bg-amber-500/15 text-amber-300", wash: "bg-gradient-to-r from-amber-500/10 to-transparent" };
     default: return { badge: "border-zinc-600 bg-zinc-700/30 text-zinc-300", wash: "" };
   }
+}
+
+function MetaPill({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="rounded-full bg-black/35 px-2 py-0.5 text-[11px] font-medium text-zinc-200 ring-1 ring-white/10 backdrop-blur-sm">
+      {children}
+    </span>
+  );
 }
 
 function HeaderStat({ label, value }: { label: string; value: string }) {
