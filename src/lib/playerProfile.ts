@@ -298,6 +298,11 @@ export async function getPlayerProfile(
 
         const started = startersArr.includes(playerId);
         const pts = pp[playerId] ?? 0;
+
+        // A rostered player scoring exactly 0 didn't play (bye or inactive).
+        // Those aren't real start/sit decisions, so skip the week entirely.
+        if (pts === 0) continue;
+
         const order = si * 1000 + week;
         const label = `${season.season} wk${week}`;
 
