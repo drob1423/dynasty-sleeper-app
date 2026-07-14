@@ -227,8 +227,10 @@ export default function LeaguePage() {
 
         <p className="mt-6 text-xs text-zinc-600">
           Record = regular-season record, with the playoff (PO) record beneath
-          · PF/PA = points for/against · the smaller number under PF is points
-          behind the top scorer · 🥇🥈🥉 = season finish.
+          · PF/PA = points for/against, each with its league rank (PF: most is
+          1st; PA: most is 1st, so the fewest allowed ranks last) · under PF is
+          points behind the top scorer; under PA is points allowed above the
+          stingiest defense · 🥇🥈🥉 = season finish.
         </p>
       </div>
     </>
@@ -310,8 +312,18 @@ type AllTimeTableRow = {
 };
 
 function AllTimeTable({ rows }: { rows: AllTimeTableRow[] }) {
-  // The top scorer sets the baseline; everyone else shows their deficit.
+  // The top scorer sets the PF baseline; the stingiest defense sets the PA one.
   const topPF = rows.length ? Math.max(...rows.map((r) => r.pf)) : 0;
+  const minPA = rows.length ? Math.min(...rows.map((r) => r.pa)) : 0;
+
+  // Rank each team within PF and PA. PF: most points-for is 1st (good). PA:
+  // most points-against is 1st, so the fewest points allowed ranks last (good).
+  const pfRank = new Map(
+    [...rows].sort((a, b) => b.pf - a.pf).map((r, i) => [r.key, i + 1])
+  );
+  const paRank = new Map(
+    [...rows].sort((a, b) => b.pa - a.pa).map((r, i) => [r.key, i + 1])
+  );
 
   // A left border marks where each column group begins.
   const groupEdge = "border-l border-zinc-800";
@@ -321,7 +333,7 @@ function AllTimeTable({ rows }: { rows: AllTimeTableRow[] }) {
       <table className="w-full min-w-[360px] text-sm">
         <thead>
           <tr className="border-b border-zinc-800 text-left text-xs uppercase tracking-wide text-zinc-500">
-            <th className="px-4 py-3 font-medium">Team</th>
+            <th className="px-3 py-3 font-medium">Team</th>
             <th className="px-2 py-3 text-center font-medium">Szn</th>
             <th className={`px-2 py-3 text-center font-medium ${groupEdge}`}>
               Record
@@ -334,9 +346,10 @@ function AllTimeTable({ rows }: { rows: AllTimeTableRow[] }) {
         <tbody>
           {rows.map((row, i) => {
             const back = topPF - row.pf;
+            const paDiff = row.pa - minPA;
             return (
               <tr key={row.key} className="border-b border-zinc-800/60 last:border-0">
-                <td className="px-4 py-3">
+                <td className="px-3 py-3">
                   <div className="flex items-baseline gap-2">
                     <span className="w-5 shrink-0 text-xs font-semibold tabular-nums text-zinc-500">
                       {i + 1}
@@ -372,7 +385,12 @@ function AllTimeTable({ rows }: { rows: AllTimeTableRow[] }) {
                   </div>
                 </td>
                 <td className="px-2 py-3 text-right align-top text-zinc-300">
-                  <div>{row.pf.toFixed(1)}</div>
+                  <div>
+                    {row.pf.toFixed(1)}
+                    <sup className="ml-0.5 text-[9px] font-normal text-zinc-500">
+                      {pfRank.get(row.key)}
+                    </sup>
+                  </div>
                   <div
                     className={`mt-0.5 text-xs ${
                       back < 0.05 ? "text-zinc-600" : "text-red-400"
@@ -383,7 +401,20 @@ function AllTimeTable({ rows }: { rows: AllTimeTableRow[] }) {
                   </div>
                 </td>
                 <td className="px-2 py-3 text-right align-top text-zinc-400">
-                  {row.pa.toFixed(1)}
+                  <div>
+                    {row.pa.toFixed(1)}
+                    <sup className="ml-0.5 text-[9px] font-normal text-zinc-500">
+                      {paRank.get(row.key)}
+                    </sup>
+                  </div>
+                  <div
+                    className={`mt-0.5 text-xs ${
+                      paDiff < 0.05 ? "text-zinc-600" : "text-red-400"
+                    }`}
+                    title="Points allowed above the stingiest defense"
+                  >
+                    {paDiff < 0.05 ? "—" : `+${paDiff.toFixed(1)}`}
+                  </div>
                 </td>
               </tr>
             );
