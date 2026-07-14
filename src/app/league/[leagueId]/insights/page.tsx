@@ -73,49 +73,84 @@ export default function InsightsTab() {
     );
   }
 
+  // One uniform points scale across every plot, rounded up to a clean number.
+  const globalMax = Math.max(
+    30,
+    ...rooms.flatMap((r) => r.teams.flatMap((t) => t.players.map((p) => p.max)))
+  );
+  const scaleMax = Math.ceil(globalMax / 10) * 10;
+
   return (
     <div className="space-y-4">
       <div>
         <h2 className="text-lg font-semibold text-white">Positional Strength</h2>
         <p className="mt-1 text-sm text-zinc-400">
           Where each team&rsquo;s <span className="text-emerald-400">starters</span> and{" "}
-          <span className="text-sky-400">bench</span> rank in the league. Expand a team to
-          see each player&rsquo;s weekly range — the average, the typical week, and the
-          boom/bust outliers.
+          <span className="text-sky-400">bench</span> rank in the league. Expand a team to see
+          every player&rsquo;s weekly scoring — its spread, its typical week, and the boom/bust
+          games.
         </p>
       </div>
 
+      <Legend />
+
       {rooms.map((room) => (
-        <RoomCard key={room.position} room={room} open={open} toggle={toggle} leagueId={leagueId} />
+        <RoomCard
+          key={room.position}
+          room={room}
+          scaleMax={scaleMax}
+          open={open}
+          toggle={toggle}
+          leagueId={leagueId}
+        />
       ))}
 
       <p className="pt-1 text-xs text-zinc-600">
-        Ranked by starter strength — the combined weekly scoring of the players who fill each
-        lineup slot (Flex = your best 2 skill players behind your RB/WR/TE starters). Every
-        player&rsquo;s stats come from their real games, scored in your league&rsquo;s rules.
-        4+ games to be ranked.
+        Ranked by starter strength — the players who fill each lineup slot (Flex = your best 2
+        skill players behind your RB/WR/TE starters). Every player&rsquo;s stats come from their
+        real games, scored in your league&rsquo;s rules; 4+ games to be ranked.
       </p>
+    </div>
+  );
+}
+
+// One-time explainer for the box-and-whisker marks.
+function Legend() {
+  return (
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-zinc-800 bg-zinc-900/60 px-4 py-2.5 text-[11px] text-zinc-400">
+      <span className="flex items-center gap-1.5">
+        <span className="h-2 w-2 rounded-full bg-zinc-300/60" /> each game
+      </span>
+      <span className="flex items-center gap-1.5">
+        <span className="h-3 w-5 rounded border border-emerald-800 bg-emerald-500/25" /> middle 50%
+      </span>
+      <span className="flex items-center gap-1.5">
+        <span className="h-3.5 w-0.5 bg-zinc-100" /> median (typical week)
+      </span>
+      <span className="flex items-center gap-1.5">
+        <span className="h-2 w-2 rotate-45 border border-white bg-zinc-900" /> average
+      </span>
+      <span className="flex items-center gap-1.5">
+        <span className="h-px w-5 bg-zinc-500" /> full range
+      </span>
     </div>
   );
 }
 
 function RoomCard({
   room,
+  scaleMax,
   open,
   toggle,
   leagueId,
 }: {
   room: PositionRoom;
+  scaleMax: number;
   open: Set<string>;
   toggle: (k: string) => void;
   leagueId: string;
 }) {
   const total = room.teams.length;
-  // Shared box-plot scale across the whole card, for comparability.
-  const scaleMax = Math.max(
-    20,
-    ...room.teams.flatMap((t) => t.players.map((p) => p.max))
-  );
   return (
     <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
       <div className="flex items-baseline justify-between border-b border-zinc-800 px-4 py-3">
@@ -196,11 +231,18 @@ function TeamRow({
       </button>
 
       {expanded && (
-        <div className="space-y-1 px-4 pb-3">
+        <div className="px-4 pb-4 pt-1">
           {t.players.length === 0 ? (
             <p className="text-xs text-zinc-600">No qualifying producers.</p>
           ) : (
-            t.players.map((p) => <PlayerBox key={p.id} p={p} scaleMax={scaleMax} leagueId={leagueId} />)
+            <>
+              <AxisRuler scaleMax={scaleMax} />
+              <div className="mt-1 space-y-2.5">
+                {t.players.map((p) => (
+                  <PlayerRow key={p.id} p={p} scaleMax={scaleMax} leagueId={leagueId} />
+                ))}
+              </div>
+            </>
           )}
         </div>
       )}
@@ -232,45 +274,86 @@ function PlaceBar({
   );
 }
 
-// Box-and-whisker of a player's weekly scores, on a shared 0..scaleMax axis.
-function PlayerBox({ p, scaleMax, leagueId }: { p: RoomPlayer; scaleMax: number; leagueId: string }) {
+// A shared axis so every plot below reads on the same 0..scaleMax points scale.
+function AxisRuler({ scaleMax }: { scaleMax: number }) {
+  const ticks: number[] = [];
+  for (let v = 0; v <= scaleMax; v += 10) ticks.push(v);
+  return (
+    <div className="flex items-center gap-3 pl-[184px] text-[9px] text-zinc-600">
+      <div className="relative h-3 flex-1">
+        {ticks.map((v) => (
+          <span key={v} className="absolute -translate-x-1/2" style={{ left: `${(v / scaleMax) * 100}%` }}>
+            {v}
+          </span>
+        ))}
+      </div>
+      <span className="w-16 shrink-0 text-right">pts/wk</span>
+    </div>
+  );
+}
+
+// deterministic vertical jitter for the dots (no Math.random)
+function jitter(i: number) {
+  return (((i * 97) % 13) / 13 - 0.5) * 20; // px, ±10
+}
+
+function PlayerRow({ p, scaleMax, leagueId }: { p: RoomPlayer; scaleMax: number; leagueId: string }) {
   const pct = (v: number) => `${Math.max(0, Math.min(100, (v / scaleMax) * 100))}%`;
   const small = p.gp < 4;
   return (
-    <div className="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-zinc-800/40">
-      <span
-        className={`w-6 shrink-0 rounded py-0.5 text-center text-[10px] font-semibold ${
-          p.isStarter ? "bg-emerald-950/60 text-emerald-400" : "bg-zinc-800 text-zinc-500"
-        }`}
-      >
-        {p.posRank}
-      </span>
-      <Link href={`/league/${leagueId}/player/${p.id}`} className="w-28 shrink-0 truncate text-xs text-zinc-300 hover:text-white">
-        {p.name}
-        <span className="block text-[10px] text-zinc-600">
-          {p.team ?? "FA"} · {p.gp} gp{small && " ·small"}
+    <div className="flex items-center gap-3">
+      {/* identity + numbers (fixed 184px so the axis lines up) */}
+      <div className="flex w-[184px] shrink-0 items-center gap-2">
+        <span
+          className={`w-7 shrink-0 rounded py-0.5 text-center text-[10px] font-semibold ${
+            p.isStarter ? "bg-emerald-950/60 text-emerald-400" : "bg-zinc-800 text-zinc-500"
+          }`}
+        >
+          {p.posRank}
         </span>
-      </Link>
+        <div className="min-w-0 flex-1">
+          <Link href={`/league/${leagueId}/player/${p.id}`} className="block truncate text-xs text-zinc-200 hover:text-white">
+            {p.name}
+          </Link>
+          <div className="text-[10px] text-zinc-600">
+            {p.team ?? "FA"} · {p.gp} gp{small && " · small"}
+          </div>
+        </div>
+      </div>
 
-      <div className="relative h-6 flex-1">
-        {[0.25, 0.5, 0.75].map((f) => (
-          <div key={f} className="absolute top-0 bottom-0 w-px bg-zinc-800" style={{ left: `${f * 100}%` }} />
+      {/* the plot */}
+      <div className="relative h-11 flex-1">
+        {Array.from({ length: Math.floor(scaleMax / 10) + 1 }, (_, k) => k * 10).map((v) => (
+          <div key={v} className="absolute top-0 bottom-0 w-px bg-zinc-800/70" style={{ left: pct(v) }} />
         ))}
+        {/* range whisker */}
         <div className="absolute top-1/2 h-px -translate-y-1/2 bg-zinc-600" style={{ left: pct(p.min), width: `calc(${pct(p.max)} - ${pct(p.min)})` }} />
+        {/* interquartile box */}
         <div
-          className={`absolute top-1/2 h-3.5 -translate-y-1/2 rounded border ${
-            p.isStarter ? "border-emerald-800 bg-emerald-500/25" : "border-sky-900 bg-sky-500/20"
+          className={`absolute top-1/2 h-5 -translate-y-1/2 rounded border ${
+            p.isStarter ? "border-emerald-700/70 bg-emerald-500/15" : "border-sky-800/70 bg-sky-500/12"
           }`}
           style={{ left: pct(p.q1), width: `calc(${pct(p.q3)} - ${pct(p.q1)})` }}
         />
-        <div className="absolute top-1/2 h-3.5 w-0.5 -translate-y-1/2 bg-zinc-100" style={{ left: pct(p.median) }} title={`median ${p.median}`} />
+        {/* individual games */}
+        {(p.weeks ?? []).map((v, i) => (
+          <div
+            key={i}
+            className="absolute h-[5px] w-[5px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-zinc-200/50"
+            style={{ left: pct(v), top: `calc(50% + ${jitter(i)}px)` }}
+          />
+        ))}
+        {/* median */}
+        <div className="absolute top-1/2 h-6 w-0.5 -translate-y-1/2 bg-zinc-100" style={{ left: pct(p.median) }} title={`median ${p.median}`} />
+        {/* mean */}
         <div
-          className="absolute top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rotate-45 border border-white bg-zinc-900"
+          className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rotate-45 border border-white bg-zinc-900"
           style={{ left: pct(p.mean) }}
           title={`average ${p.mean}`}
         />
       </div>
 
+      {/* right-side numbers */}
       <span className="w-16 shrink-0 text-right text-xs">
         <span className="font-semibold text-white">{p.mean.toFixed(1)}</span>
         <span className="text-zinc-600"> avg</span>

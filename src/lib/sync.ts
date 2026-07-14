@@ -174,6 +174,7 @@ export type PlayerStat = {
   mean: number;    // average points per game
   median: number;
   min: number; q1: number; q3: number; max: number;
+  weeks: number[]; // each game's fantasy points (for the dot plot)
 };
 
 async function computeLeaguePlayerStats(admin: Admin, chain: LeagueDetail[]): Promise<void> {
@@ -213,6 +214,7 @@ async function computeLeaguePlayerStats(admin: Admin, chain: LeagueDetail[]): Pr
       q1: Math.round(quantile(sorted, 0.25) * 100) / 100,
       q3: Math.round(quantile(sorted, 0.75) * 100) / 100,
       max: sorted[sorted.length - 1],
+      weeks: sorted.map((x) => Math.round(x * 10) / 10),
     };
   });
 
