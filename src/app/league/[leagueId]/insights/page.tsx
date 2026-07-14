@@ -68,10 +68,10 @@ export default function InsightsTab() {
       <div>
         <h2 className="text-lg font-semibold text-white">Positional Strength</h2>
         <p className="mt-1 text-sm text-zinc-400">
-          Every team&rsquo;s position group split into two: combined scoring of
-          its <span className="text-emerald-400">starters</span> and the average
-          quality (league rank) of its <span className="text-sky-400">depth</span>{" "}
-          behind them. Ranked by starter strength.
+          Every team&rsquo;s position group split into two — the average league
+          rank of its <span className="text-emerald-400">starters</span> and of
+          its <span className="text-sky-400">bench</span> behind them (lower =
+          better). Ranked by starter quality.
         </p>
       </div>
 
@@ -86,13 +86,13 @@ export default function InsightsTab() {
       ))}
 
       <p className="pt-1 text-xs text-zinc-600">
-        <span className="text-emerald-500/80">Starters (ST)</span> = combined
-        PPG of the players that fill the lineup slots (QB 2, RB 2, WR 2, TE 1;
-        Flex = the full 7-man RB/WR/TE lineup) — cards rank by this.{" "}
-        <span className="text-sky-500/80">Depth (DP)</span> = average league
-        rank of the bench behind them (lower = better quality; ·N = how many),
-        so quality depth beats a pile of replaceable bodies. Only players with
-        3+ scoring games count; tenure-neutral, so rookies compare fairly.
+        <span className="text-emerald-500/80">Starters (ST)</span> = average
+        league rank of the players that fill the lineup slots (QB 2, RB 2, WR 2,
+        TE 1; Flex = the full 7-man RB/WR/TE lineup) — cards rank by this.{" "}
+        <span className="text-sky-500/80">Bench (BN)</span> = average league
+        rank of everyone behind them (·N = how many), so quality depth beats a
+        pile of replaceable bodies. Lower is better. Only players with 3+
+        scoring games count; tenure-neutral, so rookies compare fairly.
       </p>
     </div>
   );
@@ -121,7 +121,8 @@ function PositionCard({
         </h3>
         <span className="flex gap-3 text-[10px] uppercase tracking-wide">
           <span className="text-emerald-500/80">Starters</span>
-          <span className="text-sky-500/80">Depth</span>
+          <span className="text-sky-500/80">Bench</span>
+          <span className="text-zinc-600">avg rank</span>
         </span>
       </div>
       <div>
@@ -131,7 +132,8 @@ function PositionCard({
             t={t}
             rank={i + 1}
             total={n}
-            maxStarter={pos.leagueMaxStarter}
+            starterBest={pos.starterBest}
+            starterWorst={pos.starterWorst}
             depthBest={pos.depthBest}
             depthWorst={pos.depthWorst}
             leagueId={leagueId}
@@ -185,7 +187,8 @@ function RoomRow({
   t,
   rank,
   total,
-  maxStarter,
+  starterBest,
+  starterWorst,
   depthBest,
   depthWorst,
   leagueId,
@@ -195,23 +198,28 @@ function RoomRow({
   t: TeamRoom;
   rank: number;
   total: number;
-  maxStarter: number;
+  starterBest: number;
+  starterWorst: number;
   depthBest: number;
   depthWorst: number;
   leagueId: string;
   expanded: boolean;
   onToggle: () => void;
 }) {
-  const startPct =
-    maxStarter > 0 ? Math.max(2, (t.starterScore / maxStarter) * 100) : 0;
-  // Depth bar: fuller = better (lower avg rank). Scaled between the league's
-  // best and worst bench quality for contrast.
-  const depthPct =
-    t.depthAvgRank == null
+  // Both bars: fuller = better (lower avg rank). Scaled between the league's
+  // best and worst for contrast within the card.
+  const rankPct = (
+    v: number | null,
+    best: number,
+    worst: number
+  ): number =>
+    v == null
       ? 0
-      : depthWorst > depthBest
-      ? Math.max(2, ((depthWorst - t.depthAvgRank) / (depthWorst - depthBest)) * 100)
+      : worst > best
+      ? Math.max(2, ((worst - v) / (worst - best)) * 100)
       : 100;
+  const startPct = rankPct(t.starterAvgRank, starterBest, starterWorst);
+  const depthPct = rankPct(t.depthAvgRank, depthBest, depthWorst);
 
   return (
     <div
@@ -259,18 +267,14 @@ function RoomRow({
             pct={startPct}
             barClass="bg-emerald-500/70"
             valueClass="text-emerald-300"
-            text={t.starterScore > 0 ? t.starterScore.toFixed(1) : "—"}
+            text={t.starterAvgRank != null ? t.starterAvgRank.toFixed(1) : "—"}
           />
           <BarLine
-            label="DP"
+            label="BN"
             pct={depthPct}
             barClass="bg-sky-500/60"
             valueClass="text-sky-300/90"
-            text={
-              t.depthAvgRank != null
-                ? `${t.depthAvgRank.toFixed(1)}`
-                : "—"
-            }
+            text={t.depthAvgRank != null ? t.depthAvgRank.toFixed(1) : "—"}
             sub={t.depthCount > 0 ? `·${t.depthCount}` : undefined}
           />
         </div>

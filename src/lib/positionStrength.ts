@@ -52,9 +52,9 @@ export type TeamRoom = {
   teamName: string;
   logo: string | null;
   isMe: boolean;
-  starterScore: number; // Σ PPG of the startable core (top-N) — magnitude
-  depthAvgRank: number | null; // avg league positional rank of the bench (lower = better quality)
-  rank: number; // team's rank (by starter strength) for this position
+  starterAvgRank: number | null; // avg league positional rank of the top-N (lower = better)
+  depthAvgRank: number | null; // avg league positional rank of the bench (lower = better)
+  rank: number; // team's rank (by starter avg rank) for this position
   starterCount: number; // how many players counted as starters (≤ N)
   depthCount: number; // how many bench players counted toward depth
   players: RoomPlayer[]; // ranked contributors, best first; starters flagged
@@ -64,7 +64,8 @@ export type PositionStrength = {
   position: RankedPosition;
   teams: TeamRoom[]; // ranked by starter strength, strongest first
   starters: number; // starting slots at this position (N)
-  leagueMaxStarter: number; // best starter score (for bar scaling)
+  starterBest: number; // lowest (best) starter avg rank in the league
+  starterWorst: number; // highest (worst) starter avg rank in the league
   depthBest: number; // lowest (best) bench avg rank in the league
   depthWorst: number; // highest (worst) bench avg rank in the league
 };
@@ -183,13 +184,12 @@ export async function getPositionStrength(
       players.forEach((p, i) => (p.isStarter = i < N));
       const core = players.slice(0, N);
       const bench = players.slice(N);
-      // Starters: cumulative production (magnitude of your starting core).
-      const starterScore = core.reduce((s, p) => s + p.ppg, 0);
-      // Depth: average quality of the bench (lower rank = better). Quality
-      // depth beats a pile of replaceable bodies; the count shows quantity.
-      const depthAvgRank =
-        bench.length > 0
-          ? bench.reduce((s, p) => s + p.posRank, 0) / bench.length
+      // Both metrics are average league positional rank (lower = better). The
+      // top-N starters gauge lineup quality; the bench gauges depth quality —
+      // so a few quality backups beat a pile of replaceable bodies.
+      const avgRank = (arr: RoomPlayer[]) =>
+        arr.length > 0
+          ? arr.reduce((s, p) => s + p.posRank, 0) / arr.length
           : null;
       return {
         rosterId: r.roster_id,
@@ -197,8 +197,8 @@ export async function getPositionStrength(
         teamName: u?.team_name || u?.display_name || "Unknown",
         logo: u?.teamAvatar ?? null,
         isMe: !!myUserId && r.owner_id === myUserId,
-        starterScore,
-        depthAvgRank,
+        starterAvgRank: avgRank(core),
+        depthAvgRank: avgRank(bench),
         rank: 0,
         starterCount: core.length,
         depthCount: bench.length,
@@ -206,16 +206,32 @@ export async function getPositionStrength(
       };
     });
 
-    // Rank by starter strength (the headline); depth shown alongside.
-    teams.sort((a, b) => b.starterScore - a.starterScore);
+    // Rank by starter quality (lowest avg rank = best); teams with no starter
+    // sink to the bottom.
+    teams.sort(
+      (a, b) => (a.starterAvgRank ?? Infinity) - (b.starterAvgRank ?? Infinity)
+    );
     teams.forEach((t, i) => (t.rank = i + 1));
-    const leagueMaxStarter = teams.reduce((m, t) => Math.max(m, t.starterScore), 0);
-    const benchRanks = teams
-      .map((t) => t.depthAvgRank)
-      .filter((x): x is number => x != null);
-    const depthBest = benchRanks.length ? Math.min(...benchRanks) : 0;
-    const depthWorst = benchRanks.length ? Math.max(...benchRanks) : 0;
-    return { position, teams, starters: N, leagueMaxStarter, depthBest, depthWorst };
+    const spread = (pick: (t: TeamRoom) => number | null) => {
+      const vals = teams
+        .map(pick)
+        .filter((x): x is number => x != null);
+      return {
+        best: vals.length ? Math.min(...vals) : 0,
+        worst: vals.length ? Math.max(...vals) : 0,
+      };
+    };
+    const st = spread((t) => t.starterAvgRank);
+    const dp = spread((t) => t.depthAvgRank);
+    return {
+      position,
+      teams,
+      starters: N,
+      starterBest: st.best,
+      starterWorst: st.worst,
+      depthBest: dp.best,
+      depthWorst: dp.worst,
+    };
   });
 
   return result;
