@@ -68,6 +68,48 @@ export async function getRosterInsights(
     if (!cur || order >= cur.order) acqEvents.set(pid, { order, acq });
   };
 
+  // Pre-pass: fetch every season's draft. Builds (a) draft acquisitions for the
+  // current owner, and (b) a lookup to resolve traded picks to their slot +
+  // the player selected (keyed by season-round-originalRoster).
+  const draftPickLookup = new Map<
+    string,
+    { slot: number; playerId: string | null }
+  >();
+  for (let si = 0; si < oldestFirst.length; si++) {
+    const season = oldestFirst[si];
+    try {
+      const drafts = await fetch(`${BASE}/league/${season.league_id}/drafts`)
+        .then((r) => (r.ok ? r.json() : []))
+        .catch(() => []);
+      for (const d of drafts) {
+        const rounds: number = d.settings?.rounds ?? 0;
+        const kind = rounds >= 10 ? "Startup" : "Rookie";
+        const yy = season.season.slice(2);
+        const picks = await fetch(`${BASE}/draft/${d.draft_id}/picks`)
+          .then((r) => (r.ok ? r.json() : []))
+          .catch(() => []);
+        for (const pk of picks) {
+          if (pk.roster_id != null && pk.round != null) {
+            draftPickLookup.set(`${season.season}-${pk.round}-${pk.roster_id}`, {
+              slot: pk.draft_slot ?? pk.pick_no ?? 0,
+              playerId: pk.player_id ?? null,
+            });
+          }
+          if (
+            pk.player_id &&
+            rosterSet.has(pk.player_id) &&
+            pk.picked_by === ownerId
+          ) {
+            noteAcq(pk.player_id, si * 100, {
+              method: "draft",
+              label: `${kind} '${yy} · R${pk.round}.${pk.pick_no}`,
+            });
+          }
+        }
+      }
+    } catch {}
+  }
+
   for (let si = 0; si < oldestFirst.length; si++) {
     const season = oldestFirst[si];
     const lid = season.league_id;
@@ -124,35 +166,6 @@ export async function getRosterInsights(
       }
     });
 
-    // Draft acquisitions by the current owner.
-    try {
-      const drafts = await fetch(`${BASE}/league/${lid}/drafts`).then((r) =>
-        r.ok ? r.json() : []
-      );
-      for (const d of drafts) {
-        // A deep draft (many rounds) is the startup; a short one is a rookie
-        // draft.
-        const rounds: number = d.settings?.rounds ?? 0;
-        const kind = rounds >= 10 ? "Startup" : "Rookie";
-        const yy = season.season.slice(2);
-        const picks = await fetch(`${BASE}/draft/${d.draft_id}/picks`).then(
-          (r) => (r.ok ? r.json() : [])
-        );
-        for (const pk of picks) {
-          if (
-            pk.player_id &&
-            rosterSet.has(pk.player_id) &&
-            pk.picked_by === ownerId
-          ) {
-            noteAcq(pk.player_id, si * 100, {
-              method: "draft",
-              label: `${kind} '${yy} · R${pk.round}.${pk.pick_no}`,
-            });
-          }
-        }
-      }
-    } catch {}
-
     // Transaction acquisitions (trade / waiver / free agent) landing on the
     // current owner's roster.
     const txWeeks = Array.from({ length: 19 }, (_, i) => i);
@@ -176,7 +189,15 @@ export async function getRosterInsights(
             noteAcq(pid, order, {
               method: "trade",
               label: `Trade '${season.season.slice(2)}`,
-              trade: buildTrade(t, season.season, wi, ownerByRoster, handleByOwner, playerMap),
+              trade: buildTrade(
+                t,
+                season.season,
+                wi,
+                ownerByRoster,
+                handleByOwner,
+                playerMap,
+                draftPickLookup
+              ),
             });
           } else if (t.type === "waiver") {
             const bid = t.settings?.waiver_bid;
@@ -265,7 +286,8 @@ function buildTrade(
     draft_picks?: {
       season: string;
       round: number;
-      owner_id: number;
+      roster_id: number; // original owner of the pick (determines the slot)
+      owner_id: number; // roster that received it in this trade
     }[];
     roster_ids?: number[];
   },
@@ -273,7 +295,8 @@ function buildTrade(
   week: number,
   ownerByRoster: Map<number, string | null>,
   handleByOwner: Map<string, string>,
-  playerMap: Record<string, PlayerInfo>
+  playerMap: Record<string, PlayerInfo>,
+  draftPickLookup: Map<string, { slot: number; playerId: string | null }>
 ): TradeDetail {
   const sides: TradeSide[] = [];
   const rosterIds = t.roster_ids ?? [];
@@ -287,7 +310,19 @@ function buildTrade(
       if (t.adds![pid] === rid) received.push(playerMap[pid]?.name ?? pid);
     }
     for (const pk of t.draft_picks ?? []) {
-      if (pk.owner_id === rid) received.push(`${pk.season} R${pk.round} pick`);
+      if (pk.owner_id !== rid) continue;
+      const yy = pk.season.slice(2);
+      const resolved = draftPickLookup.get(
+        `${pk.season}-${pk.round}-${pk.roster_id}`
+      );
+      if (resolved?.playerId) {
+        const name = playerMap[resolved.playerId]?.name ?? "pick";
+        received.push(
+          `'${yy} R${pk.round}.${String(resolved.slot).padStart(2, "0")} → ${name}`
+        );
+      } else {
+        received.push(`'${yy} R${pk.round} pick`);
+      }
     }
     sides.push({ handle: handleOf(rid), received });
   }
