@@ -310,12 +310,8 @@ function StintCard({
                 .slice()
                 .sort((a, b) => b.gain - a.gain)
                 .map((b, i) => {
-                  const result =
-                    b.myScore > b.oppScore
-                      ? "Won"
-                      : b.myScore < b.oppScore
-                      ? "Lost"
-                      : "Tied";
+                  const won = b.myScore > b.oppScore;
+                  const lost = b.myScore < b.oppScore;
                   return (
                     <div
                       key={i}
@@ -323,13 +319,20 @@ function StintCard({
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-zinc-300">
-                          Wk {b.week} &rsquo;{b.seasonLabel.slice(2)} · vs{" "}
-                          {b.oppName}
+                          Wk {b.week} &rsquo;{b.seasonLabel.slice(2)} · vs @
+                          {b.oppHandle || b.oppName}
                         </span>
                         <span className="flex shrink-0 items-center gap-2">
+                          <span
+                            className={[
+                              "flex h-4 w-4 items-center justify-center rounded text-[10px] font-bold text-black",
+                              won ? "bg-emerald-500" : lost ? "bg-red-500" : "bg-zinc-500",
+                            ].join(" ")}
+                          >
+                            {won ? "W" : lost ? "L" : "T"}
+                          </span>
                           <span className="text-zinc-400">
-                            {result} {b.myScore.toFixed(1)}–
-                            {b.oppScore.toFixed(1)}
+                            {b.myScore.toFixed(1)}–{b.oppScore.toFixed(1)}
                           </span>
                           {b.wouldHaveWon && (
                             <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-emerald-400">
