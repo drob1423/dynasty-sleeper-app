@@ -342,12 +342,18 @@ function PlayerRow({ p, scaleMax, leagueId }: { p: RoomPlayer; scaleMax: number;
           style={{ left: pct(p.mean) }}
           title={`average ${p.mean}`}
         />
-        {/* value labels: middle-50% above the box, worst/best under the whiskers */}
+        {/* value labels: box edges (25th/75th) above, worst/best under the whiskers */}
         <span
           className="absolute top-0 -translate-x-1/2 text-[9px] tabular-nums text-zinc-400"
-          style={{ left: pct((p.q1 + p.q3) / 2) }}
+          style={{ left: pct(p.q1) }}
         >
-          {p.q1.toFixed(1)}–{p.q3.toFixed(1)}
+          {p.q1.toFixed(1)}
+        </span>
+        <span
+          className="absolute top-0 -translate-x-1/2 text-[9px] tabular-nums text-zinc-400"
+          style={{ left: pct(p.q3) }}
+        >
+          {p.q3.toFixed(1)}
         </span>
         <span
           className="absolute bottom-0 -translate-x-1/2 text-[9px] tabular-nums text-zinc-500"
