@@ -288,10 +288,10 @@ function posAccent(pos?: string | null): { badge: string; wash: string } {
   }
 }
 
-// Madden-style PPG rating: number in a ring colored by rank at position
-// (green = best in the league at his spot, red = worst).
+// Madden-style PPG rating: a gauge arc filled by rank at position, colored
+// green (best at his spot in the league) through yellow to red (worst).
 function heatColor(heat: number): string {
-  return `hsl(${Math.round(heat * 125)}, 70%, 46%)`; // 0 = red, 1 = green
+  return `hsl(${Math.round(heat * 130)}, 68%, ${48 - heat * 8}%)`; // 0 = red, 1 = dark green
 }
 
 function RatingBadge({
@@ -303,20 +303,35 @@ function RatingBadge({
   heat: number | null;
   rankLabel: string;
 }) {
+  const frac = heat ?? 0;
   const color = heat == null ? "#52525b" : heatColor(heat);
+  const R = 42;
+  const C = 2 * Math.PI * R;
+  const ARC = 0.75 * C; // 270° gauge, gap at the bottom
   return (
     <div className="shrink-0 text-center">
-      <div
-        className="flex h-[68px] w-[68px] flex-col items-center justify-center rounded-full border-[3px] bg-zinc-950/70"
-        style={{ borderColor: color, boxShadow: `0 0 14px ${color}55` }}
-      >
-        <span className="text-xl font-bold leading-none text-white">{ppg.toFixed(1)}</span>
-        <span className="mt-0.5 text-[8px] font-semibold uppercase tracking-wider text-zinc-400">
-          ppg
-        </span>
+      <div className="relative h-[72px] w-[72px]">
+        <svg viewBox="0 0 100 100" className="h-full w-full">
+          <circle
+            cx="50" cy="50" r={R} fill="none" stroke="#3f3f46" strokeWidth="8"
+            strokeLinecap="round"
+            strokeDasharray={`${ARC} ${C - ARC}`}
+            transform="rotate(135 50 50)"
+          />
+          <circle
+            cx="50" cy="50" r={R} fill="none" stroke={color} strokeWidth="8"
+            strokeLinecap="round"
+            strokeDasharray={`${frac * ARC} ${C}`}
+            transform="rotate(135 50 50)"
+          />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-lg font-bold leading-none text-white">{ppg.toFixed(1)}</span>
+          <span className="text-[8px] font-semibold uppercase tracking-wider text-zinc-500">ppg</span>
+        </div>
       </div>
       {rankLabel && (
-        <div className="mt-1.5 text-[10px] font-medium text-zinc-300">{rankLabel}</div>
+        <div className="mt-1 text-[10px] font-medium text-zinc-300">{rankLabel}</div>
       )}
     </div>
   );
