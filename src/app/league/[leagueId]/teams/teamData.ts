@@ -33,6 +33,8 @@ export type TeamCard = {
   form: ("W" | "L" | "T")[]; // last 5 regular-season results, oldest→newest
   h2h: H2HRecord | null; // logged-in user's record vs this team (null on own team)
   isMe: boolean; // this is the logged-in user's team
+  newOwner: boolean; // current owner just took over the slot (hasn't played)
+  tookOverFrom: string | null; // handle of the previous owner
   trades: number;
   moves: number;
   faab: number | null;
@@ -61,22 +63,31 @@ export async function loadTeamCards(
 
   const playedOldestFirst = [...chain].filter(seasonHasData).reverse();
 
-  const [perSeasonRosters, txStatsPerSeason, lastPlayoffs, weeklyPerSeason, h2hMap] =
-    await Promise.all([
-      Promise.all(chain.map((s) => getRosters(s.league_id))),
-      Promise.all(chain.map((s) => getTransactionStatsForSeason(s.league_id))),
-      lastPlayed
-        ? getPlayoffResults(lastPlayed.league_id)
-        : Promise.resolve(new Map()),
-      Promise.all(
-        playedOldestFirst.map((s) =>
-          getWeeklyResults(s.league_id, (s.playoff_week_start || 15) - 1)
-        )
-      ),
-      myUserId
-        ? getUserH2H(chain, myUserId)
-        : Promise.resolve(new Map<string, H2HRecord>()),
-    ]);
+  const [
+    perSeasonRosters,
+    txStatsPerSeason,
+    lastPlayoffs,
+    weeklyPerSeason,
+    h2hMap,
+    lastPlayedUsers,
+  ] = await Promise.all([
+    Promise.all(chain.map((s) => getRosters(s.league_id))),
+    Promise.all(chain.map((s) => getTransactionStatsForSeason(s.league_id))),
+    lastPlayed
+      ? getPlayoffResults(lastPlayed.league_id)
+      : Promise.resolve(new Map()),
+    Promise.all(
+      playedOldestFirst.map((s) =>
+        getWeeklyResults(s.league_id, (s.playoff_week_start || 15) - 1)
+      )
+    ),
+    myUserId
+      ? getUserH2H(chain, myUserId)
+      : Promise.resolve(new Map<string, H2HRecord>()),
+    lastPlayed
+      ? getLeagueUsers(lastPlayed.league_id)
+      : Promise.resolve([] as SleeperManager[]),
+  ]);
 
   // Chain each roster's regular-season results across all seasons.
   const formByRoster = new Map<number, ("W" | "L" | "T")[]>();
@@ -109,17 +120,29 @@ export async function loadTeamCards(
     })
   );
 
-  // Last season rank (by record).
+  // Last season rank (by record) + who owned each slot then (for new-owner
+  // detection).
   const rankByRoster = new Map<number, number>();
+  const prevOwnerByRoster = new Map<number, string | null>();
   if (lastPlayedIndex >= 0) {
     [...perSeasonRosters[lastPlayedIndex]]
       .sort((a, b) => b.wins - a.wins || b.fpts - a.fpts)
       .forEach((r, i) => rankByRoster.set(r.roster_id, i + 1));
+    perSeasonRosters[lastPlayedIndex].forEach((r) =>
+      prevOwnerByRoster.set(r.roster_id, r.owner_id)
+    );
   }
+  const prevHandleById = new Map(
+    lastPlayedUsers.map((u) => [u.user_id, u.display_name])
+  );
 
   const cards: TeamCard[] = currentFull.map((r) => {
     const u = r.owner_id ? byId.get(r.owner_id) : undefined;
     const d = dyn.get(r.roster_id) ?? { w: 0, l: 0 };
+    const isMe = !!myUserId && r.owner_id === myUserId;
+    const prevOwner = prevOwnerByRoster.get(r.roster_id) ?? null;
+    const newOwner = !!prevOwner && !!r.owner_id && prevOwner !== r.owner_id;
+    const tookOverFrom = newOwner ? prevHandleById.get(prevOwner) ?? null : null;
     void players; // player map reserved for future roster-value stats
     return {
       rosterId: r.roster_id,
@@ -137,25 +160,25 @@ export async function loadTeamCards(
       currentL: r.losses,
       streak: trailingStreak(formByRoster.get(r.roster_id) ?? []),
       form: (formByRoster.get(r.roster_id) ?? []).slice(-5),
-      // Rivals always get an H2H record (0-0 if you've never played them, e.g.
-      // a brand-new manager) so every card keeps the same layout. Only your
-      // own team has no H2H.
-      h2h:
-        r.owner_id && r.owner_id !== myUserId
-          ? h2hMap.get(r.owner_id) ?? {
-              regW: 0,
-              regL: 0,
-              regT: 0,
-              poW: 0,
-              poL: 0,
-              poT: 0,
-              myPtsFor: 0,
-              oppPtsFor: 0,
-              myPtsForPO: 0,
-              oppPtsForPO: 0,
-            }
-          : null,
-      isMe: !!myUserId && r.owner_id === myUserId,
+      // Franchise-based H2H: your record vs this TEAM SLOT (keyed by roster_id),
+      // spanning every owner it's had. 0-0 if you've never faced it.
+      h2h: isMe
+        ? null
+        : h2hMap.get(String(r.roster_id)) ?? {
+            regW: 0,
+            regL: 0,
+            regT: 0,
+            poW: 0,
+            poL: 0,
+            poT: 0,
+            myPtsFor: 0,
+            oppPtsFor: 0,
+            myPtsForPO: 0,
+            oppPtsForPO: 0,
+          },
+      isMe,
+      newOwner,
+      tookOverFrom,
       trades: trades.get(r.roster_id) ?? 0,
       moves: moves.get(r.roster_id) ?? 0,
       faab: faabBudget > 0 ? faabBudget - r.waiverBudgetUsed : null,

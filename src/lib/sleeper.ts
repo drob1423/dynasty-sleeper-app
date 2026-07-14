@@ -411,9 +411,6 @@ async function seasonH2H(
   };
 
   const rosters = await getRosters(season.league_id);
-  const ownerByRoster = new Map<number, string | null>(
-    rosters.map((r) => [r.roster_id, r.owner_id])
-  );
   const userRoster = rosters.find((r) => r.owner_id === userId)?.roster_id;
   if (userRoster == null) return out;
 
@@ -441,9 +438,9 @@ async function seasonH2H(
       const mine = pair.find((p) => p.roster_id === userRoster);
       const opp = pair.find((p) => p.roster_id !== userRoster);
       if (!mine || !opp) continue;
-      const oppOwner = ownerByRoster.get(opp.roster_id);
-      if (!oppOwner) continue;
-      const e = ensure(oppOwner);
+      // Keyed by the opponent's TEAM SLOT (roster_id), so a franchise's H2H
+      // spans every manager who's held it.
+      const e = ensure(String(opp.roster_id));
       e.myPtsFor += mine.points;
       e.oppPtsFor += opp.points;
       if (mine.points > opp.points) e.regW++;
@@ -482,10 +479,8 @@ async function seasonH2H(
       const decidesMedal = m.p === 1 || m.p === 3;
       if (typeof m.p === "number" && !decidesMedal) continue; // skip 5th/7th
       const oppRoster = t1 === userRoster ? t2 : t1;
-      const oppOwner = ownerByRoster.get(oppRoster);
-      if (!oppOwner) continue;
       const w = typeof m.w === "number" ? m.w : null;
-      const e = ensure(oppOwner);
+      const e = ensure(String(oppRoster));
       if (w === userRoster) e.poW++;
       else if (w === oppRoster) e.poL++;
 

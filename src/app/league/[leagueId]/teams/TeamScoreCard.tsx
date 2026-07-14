@@ -49,14 +49,24 @@ export function TeamScoreCard({
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-base font-semibold text-white">
-            {t.handle}
-            {t.place && <span className="ml-1">{medalEmoji(t.place)}</span>}
+          <div className="flex items-center gap-1.5">
+            <span className="truncate text-base font-semibold text-white">
+              {t.handle}
+            </span>
+            {t.place && <span className="shrink-0">{medalEmoji(t.place)}</span>}
+            {t.newOwner && (
+              <span className="shrink-0 rounded-full border border-amber-900 bg-amber-950/40 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-amber-400">
+                New
+              </span>
+            )}
           </div>
           <div className="truncate text-xs text-zinc-500">
             {t.teamName}
-            {t.lastRank && t.lastSeason && (
-              <> · {t.lastSeason} {ordinal(t.lastRank)}</>
+            {t.newOwner && t.tookOverFrom ? (
+              <> · took over from @{t.tookOverFrom}</>
+            ) : (
+              t.lastRank &&
+              t.lastSeason && <> · {t.lastSeason} {ordinal(t.lastRank)}</>
             )}
           </div>
         </div>
