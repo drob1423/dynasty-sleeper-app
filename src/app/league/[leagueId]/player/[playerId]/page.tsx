@@ -57,7 +57,8 @@ export default function PlayerProfilePage() {
       const prof = await getPlayerProfile(
         chain,
         playerId,
-        pInfo?.fantasyPositions ?? (pInfo?.position ? [pInfo.position] : [])
+        pInfo?.fantasyPositions ?? (pInfo?.position ? [pInfo.position] : []),
+        players
       );
       setProfile(prof);
       setLoading(false);

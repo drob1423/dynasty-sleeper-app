@@ -15,6 +15,7 @@ import {
   getFullRosters,
   seasonHasData,
   type SleeperLeagueDetail,
+  type PlayerInfo,
 } from "./sleeper";
 
 const BASE = "https://api.sleeper.app/v1";
@@ -80,6 +81,41 @@ function slotEligible(fpos: string[], slot: string): boolean {
   return false;
 }
 
+// The optimal starting lineup for a week: greedily fill the most restrictive
+// slots first (base positions, then FLEX, then SUPER_FLEX) with the highest
+// scorer still available. Returns the set of player ids that WOULD start.
+function optimalStarters(
+  rosterPositions: string[],
+  rostered: { id: string; pts: number; fpos: string[] }[]
+): Set<string> {
+  const slots = rosterPositions.filter((s) => {
+    const u = s.toUpperCase();
+    return u !== "BN" && u !== "IR" && u !== "TAXI";
+  });
+  const rank = (s: string) => {
+    const u = s.toUpperCase();
+    if (u === "SUPER_FLEX" || u === "SF" || u === "OP") return 2;
+    if (u === "FLEX" || u === "WRRB_FLEX" || u === "REC_FLEX" || u === "W_R_T")
+      return 1;
+    return 0;
+  };
+  const ordered = [...slots].sort((a, b) => rank(a) - rank(b));
+  const used = new Set<string>();
+  const chosen = new Set<string>();
+  for (const slot of ordered) {
+    let best: { id: string; pts: number } | null = null;
+    for (const p of rostered) {
+      if (used.has(p.id)) continue;
+      if (slotEligible(p.fpos, slot) && (!best || p.pts > best.pts)) best = p;
+    }
+    if (best) {
+      used.add(best.id);
+      chosen.add(best.id);
+    }
+  }
+  return chosen;
+}
+
 // Marginal points for one benched week: how much better the benched player was
 // than the WORST eligible starter he could have replaced (0 if none), plus who
 // that starter was.
@@ -134,7 +170,8 @@ type AcqEvent = { order: number; label: string };
 export async function getPlayerProfile(
   chain: SleeperLeagueDetail[],
   playerId: string,
-  fantasyPositions: string[]
+  fantasyPositions: string[],
+  playerMap: Record<string, PlayerInfo>
 ): Promise<PlayerProfile> {
   const played = chain.filter(seasonHasData);
   const oldestFirst = [...played].reverse();
@@ -293,24 +330,35 @@ export async function getPlayerProfile(
           }
         } else {
           a.rawBench += pts;
-          const m = marginalForWeek(
-            rosterPositions,
-            startersArr,
-            pp,
-            pts,
-            fantasyPositions
-          );
-          a.marginal += m.gain;
-          if (m.gain > 0) {
-            a.shouldStart += 1;
-            a.badSits.push({
-              seasonLabel: season.season,
-              week,
-              playerPts: pts,
-              replacedId: m.replacedId,
-              replacedPts: m.replacedPts,
-              gain: m.gain,
-            });
+          // A benching only "costs" points if the player would have been in
+          // the OPTIMAL lineup — i.e. he was genuinely one of the best options,
+          // not just barely better than the single worst starter.
+          const rostered = roster.map((id) => ({
+            id,
+            pts: pp[id] ?? 0,
+            fpos: playerMap[id]?.fantasyPositions ?? [],
+          }));
+          const optimal = optimalStarters(rosterPositions, rostered);
+          if (optimal.has(playerId)) {
+            const m = marginalForWeek(
+              rosterPositions,
+              startersArr,
+              pp,
+              pts,
+              fantasyPositions
+            );
+            if (m.gain > 0) {
+              a.marginal += m.gain;
+              a.shouldStart += 1;
+              a.badSits.push({
+                seasonLabel: season.season,
+                week,
+                playerPts: pts,
+                replacedId: m.replacedId,
+                replacedPts: m.replacedPts,
+                gain: m.gain,
+              });
+            }
           }
         }
       }
