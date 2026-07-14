@@ -65,15 +65,21 @@ export default function PlayerProfilePage() {
       setPstat(stat);
 
       // Heat = where this PPG ranks among rostered players at his position.
+      // Qualified peers (4+ games) form the pool; the viewed player is always
+      // slotted in by his PPG even on a small sample.
       const pos = players[playerId]?.position;
-      if (stat && pos && cachedStats && stat.gp >= 4) {
+      if (stat && pos && cachedStats && stat.gp >= 1) {
         const pool = rosters
           .flatMap((r) => r.players ?? [])
-          .filter((pid) => players[pid]?.position === pos && (cachedStats[pid]?.gp ?? 0) >= 4)
+          .filter(
+            (pid) =>
+              players[pid]?.position === pos &&
+              ((cachedStats[pid]?.gp ?? 0) >= 4 || pid === playerId)
+          )
           .map((pid) => cachedStats[pid].mean);
         const better = pool.filter((v) => v > stat.mean).length; // 0 = best
         setHeat(pool.length > 1 ? 1 - better / (pool.length - 1) : 0.5);
-        setRankLabel(`${pos}${better + 1} of ${pool.length} rostered`);
+        setRankLabel(`${pos}${better + 1} of ${pool.length}`);
       } else {
         setHeat(null);
         setRankLabel("");
@@ -184,7 +190,9 @@ export default function PlayerProfilePage() {
               )}
             </div>
           </div>
-          {pstat && <RatingBadge ppg={pstat.mean} heat={heat} rankLabel={rankLabel} />}
+          {pstat && (
+            <RatingBadge ppg={pstat.mean} heat={heat} rankLabel={rankLabel} small={pstat.gp < 4} />
+          )}
         </div>
         {pstat && (
           <div className="relative grid grid-cols-4 divide-x divide-zinc-800 border-t border-zinc-800 bg-zinc-900/60 text-center">
@@ -298,10 +306,12 @@ function RatingBadge({
   ppg,
   heat,
   rankLabel,
+  small,
 }: {
   ppg: number;
   heat: number | null;
   rankLabel: string;
+  small?: boolean;
 }) {
   const frac = heat ?? 0;
   const color = heat == null ? "#52525b" : heatColor(heat);
@@ -331,7 +341,17 @@ function RatingBadge({
         </div>
       </div>
       {rankLabel && (
-        <div className="mt-1 text-[10px] font-medium text-zinc-300">{rankLabel}</div>
+        <div className="mt-1.5 flex flex-col items-center gap-0.5">
+          <span
+            className="rounded-full px-2 py-0.5 text-[11px] font-bold text-white ring-1 ring-white/15"
+            style={{ backgroundColor: heat == null ? "rgba(255,255,255,0.1)" : `${heatColor(heat)}40` }}
+          >
+            {rankLabel}
+          </span>
+          {small && (
+            <span className="text-[9px] uppercase tracking-wide text-amber-400/80">small sample</span>
+          )}
+        </div>
       )}
     </div>
   );
