@@ -52,11 +52,11 @@ export type TeamRoom = {
   teamName: string;
   logo: string | null;
   isMe: boolean;
-  starterScore: number; // Σ PPG of the startable core (top-N)
-  depthScore: number; // Σ PPG of the productive players behind the starters
+  starterScore: number; // Σ PPG of the startable core (top-N) — magnitude
+  depthAvgRank: number | null; // avg league positional rank of the bench (lower = better quality)
   rank: number; // team's rank (by starter strength) for this position
   starterCount: number; // how many players counted as starters (≤ N)
-  depthCount: number; // how many players counted as depth
+  depthCount: number; // how many bench players counted toward depth
   players: RoomPlayer[]; // ranked contributors, best first; starters flagged
 };
 
@@ -65,7 +65,8 @@ export type PositionStrength = {
   teams: TeamRoom[]; // ranked by starter strength, strongest first
   starters: number; // starting slots at this position (N)
   leagueMaxStarter: number; // best starter score (for bar scaling)
-  leagueMaxDepth: number; // best depth score (for bar scaling)
+  depthBest: number; // lowest (best) bench avg rank in the league
+  depthWorst: number; // highest (worst) bench avg rank in the league
 };
 
 export async function getPositionStrength(
@@ -182,8 +183,14 @@ export async function getPositionStrength(
       players.forEach((p, i) => (p.isStarter = i < N));
       const core = players.slice(0, N);
       const bench = players.slice(N);
+      // Starters: cumulative production (magnitude of your starting core).
       const starterScore = core.reduce((s, p) => s + p.ppg, 0);
-      const depthScore = bench.reduce((s, p) => s + p.ppg, 0);
+      // Depth: average quality of the bench (lower rank = better). Quality
+      // depth beats a pile of replaceable bodies; the count shows quantity.
+      const depthAvgRank =
+        bench.length > 0
+          ? bench.reduce((s, p) => s + p.posRank, 0) / bench.length
+          : null;
       return {
         rosterId: r.roster_id,
         handle: u?.display_name || "unknown",
@@ -191,7 +198,7 @@ export async function getPositionStrength(
         logo: u?.teamAvatar ?? null,
         isMe: !!myUserId && r.owner_id === myUserId,
         starterScore,
-        depthScore,
+        depthAvgRank,
         rank: 0,
         starterCount: core.length,
         depthCount: bench.length,
@@ -203,8 +210,12 @@ export async function getPositionStrength(
     teams.sort((a, b) => b.starterScore - a.starterScore);
     teams.forEach((t, i) => (t.rank = i + 1));
     const leagueMaxStarter = teams.reduce((m, t) => Math.max(m, t.starterScore), 0);
-    const leagueMaxDepth = teams.reduce((m, t) => Math.max(m, t.depthScore), 0);
-    return { position, teams, starters: N, leagueMaxStarter, leagueMaxDepth };
+    const benchRanks = teams
+      .map((t) => t.depthAvgRank)
+      .filter((x): x is number => x != null);
+    const depthBest = benchRanks.length ? Math.min(...benchRanks) : 0;
+    const depthWorst = benchRanks.length ? Math.max(...benchRanks) : 0;
+    return { position, teams, starters: N, leagueMaxStarter, depthBest, depthWorst };
   });
 
   return result;
