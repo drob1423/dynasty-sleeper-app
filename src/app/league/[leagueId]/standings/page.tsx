@@ -226,9 +226,11 @@ export default function LeaguePage() {
         </section>
 
         <p className="mt-6 text-xs text-zinc-600">
-          Reg = regular-season record · Playoff = medal-game record · PO Apps =
-          playoff appearances · PF/PA = points for/against · Pts Back = points
-          behind the top scorer · 🥇🥈🥉 = season finish.
+          Record = regular-season record, with the playoff (PO) record beneath
+          · PF/PA = points for/against, each with its league rank (most is 1st)
+          · under PF (red) is points behind the top scorer; PA is shown in gray
+          as context — you can&rsquo;t play defense in fantasy — with points
+          above the league&rsquo;s fewest beneath · 🥇🥈🥉 = season finish.
         </p>
       </div>
     </>
@@ -250,7 +252,7 @@ function Medals({ medals }: { medals: Medal[] }) {
     (a, b) => a.season.localeCompare(b.season) || a.place - b.place
   );
   return (
-    <span className="ml-1 inline-flex flex-wrap gap-x-1.5 align-middle">
+    <span className="inline-flex flex-wrap gap-x-1.5 gap-y-0.5 align-middle">
       {sorted.map((m, i) => (
         <span
           key={i}
@@ -310,96 +312,107 @@ type AllTimeTableRow = {
 };
 
 function AllTimeTable({ rows }: { rows: AllTimeTableRow[] }) {
-  // The top scorer sets the baseline; everyone else shows their deficit.
+  // The top scorer sets the PF baseline; the stingiest defense sets the PA one.
   const topPF = rows.length ? Math.max(...rows.map((r) => r.pf)) : 0;
+  const minPA = rows.length ? Math.min(...rows.map((r) => r.pa)) : 0;
+
+  // Rank each team within PF and PA. PF: most points-for is 1st (good). PA:
+  // most points-against is 1st, so the fewest points allowed ranks last (good).
+  const pfRank = new Map(
+    [...rows].sort((a, b) => b.pf - a.pf).map((r, i) => [r.key, i + 1])
+  );
+  const paRank = new Map(
+    [...rows].sort((a, b) => b.pa - a.pa).map((r, i) => [r.key, i + 1])
+  );
 
   // A left border marks where each column group begins.
   const groupEdge = "border-l border-zinc-800";
 
   return (
     <div className="overflow-x-auto rounded-2xl border border-zinc-800 bg-zinc-900">
-      <table className="w-full min-w-[820px] text-sm">
+      <table className="w-full min-w-[360px] text-sm">
         <thead>
-          {/* Group header row */}
-          <tr className="text-xs uppercase tracking-wide text-zinc-400">
-            <th className="px-4 pt-3 pb-1" />
-            <th className="px-4 pt-3 pb-1" />
-            <th className="px-3 pt-3 pb-1" />
-            <th
-              className={`px-3 pt-3 pb-1 text-center font-semibold text-emerald-400 ${groupEdge}`}
-              colSpan={4}
-            >
-              Regular Season
-            </th>
-            <th
-              className={`px-3 pt-3 pb-1 text-center font-semibold text-amber-400 ${groupEdge}`}
-              colSpan={2}
-            >
-              Playoffs
-            </th>
-          </tr>
-          {/* Sub-header row */}
           <tr className="border-b border-zinc-800 text-left text-xs uppercase tracking-wide text-zinc-500">
-            <th className="px-4 pb-3 font-medium">#</th>
-            <th className="px-4 pb-3 font-medium">Team</th>
-            <th className="px-3 pb-3 text-center font-medium">Szn</th>
-            <th className={`px-3 pb-3 text-center font-medium ${groupEdge}`}>
+            <th className="px-2 py-3 font-medium">Team</th>
+            <th className="px-2 py-3 text-center font-medium">Szn</th>
+            <th className={`px-2 py-3 text-center font-medium ${groupEdge}`}>
               Record
+              <span className="ml-1 font-normal text-zinc-600">/ PO</span>
             </th>
-            <th className="px-3 pb-3 text-right font-medium">PF</th>
-            <th className="px-3 pb-3 text-right font-medium">Pts Back</th>
-            <th className="px-3 pb-3 text-right font-medium">PA</th>
-            <th className={`px-3 pb-3 text-center font-medium ${groupEdge}`}>
-              Record
-            </th>
-            <th className="px-3 pb-3 text-center font-medium">Apps</th>
+            <th className="px-2 py-3 text-right font-medium">PF</th>
+            <th className="px-2 py-3 text-right font-medium">PA</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((row, i) => {
             const back = topPF - row.pf;
+            const paDiff = row.pa - minPA;
             return (
               <tr key={row.key} className="border-b border-zinc-800/60 last:border-0">
-                <td className="px-4 py-3 align-top text-zinc-500">{i + 1}</td>
-                <td className="px-4 py-3">
-                  <div className="font-medium text-white">
-                    {row.name}
-                    <Medals medals={row.medals} />
-                    {row.isCommish && (
-                      <span className="ml-2 rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] uppercase text-zinc-400">
-                        Commish
-                      </span>
-                    )}
+                <td className="px-2 py-3">
+                  <div className="flex items-baseline gap-2">
+                    <span className="w-5 shrink-0 text-xs font-semibold tabular-nums text-zinc-500">
+                      {i + 1}
+                    </span>
+                    <span className="font-medium text-white">@{row.handle}</span>
                   </div>
-                  <div className="text-xs text-zinc-500">@{row.handle}</div>
+                  {row.medals.length > 0 && (
+                    <div className="mt-1 pl-7">
+                      <Medals medals={row.medals} />
+                    </div>
+                  )}
                   {row.subtitle && (
-                    <div className="mt-1 text-xs text-zinc-600">{row.subtitle}</div>
+                    <div className="mt-1 pl-7 text-xs text-zinc-600">
+                      {row.subtitle}
+                    </div>
                   )}
                 </td>
-                <td className="px-3 py-3 text-center align-top text-zinc-300">
+                <td className="px-2 py-3 text-center align-top text-zinc-300">
                   {row.seasons}
                 </td>
-                <td
-                  className={`px-3 py-3 text-center align-top font-medium text-white ${groupEdge}`}
-                >
-                  {row.reg}
+                <td className={`px-2 py-3 text-center align-top ${groupEdge}`}>
+                  <div className="font-medium text-white">{row.reg}</div>
+                  <div
+                    className="mt-0.5 whitespace-nowrap text-xs"
+                    title={`Playoff record (${row.mainApps} appearance${
+                      row.mainApps === 1 ? "" : "s"
+                    })`}
+                  >
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
+                      PO{" "}
+                    </span>
+                    <span className="text-amber-300">{row.playoff}</span>
+                  </div>
                 </td>
-                <td className="px-3 py-3 text-right align-top text-zinc-300">
-                  {row.pf.toFixed(1)}
+                <td className="px-2 py-3 text-right align-top text-zinc-300">
+                  <div className="flex items-baseline justify-end gap-1">
+                    <span className="text-[10px] font-semibold text-zinc-500">
+                      {pfRank.get(row.key)}
+                    </span>
+                    <span>{row.pf.toFixed(1)}</span>
+                  </div>
+                  <div
+                    className={`mt-0.5 text-xs ${
+                      back < 0.05 ? "text-zinc-600" : "text-red-400"
+                    }`}
+                    title="Points behind the top scorer"
+                  >
+                    {back < 0.05 ? "—" : `-${back.toFixed(1)}`}
+                  </div>
                 </td>
-                <td className="px-3 py-3 text-right align-top text-zinc-500">
-                  {back < 0.05 ? "—" : `-${back.toFixed(1)}`}
-                </td>
-                <td className="px-3 py-3 text-right align-top text-zinc-400">
-                  {row.pa.toFixed(1)}
-                </td>
-                <td
-                  className={`px-3 py-3 text-center align-top font-medium text-white ${groupEdge}`}
-                >
-                  {row.playoff}
-                </td>
-                <td className="px-3 py-3 text-center align-top text-zinc-300">
-                  {row.mainApps}
+                <td className="px-2 py-3 text-right align-top text-zinc-400">
+                  <div className="flex items-baseline justify-end gap-1">
+                    <span className="text-[10px] font-semibold text-zinc-500">
+                      {paRank.get(row.key)}
+                    </span>
+                    <span>{row.pa.toFixed(1)}</span>
+                  </div>
+                  <div
+                    className="mt-0.5 text-xs text-zinc-500"
+                    title="Points allowed above the fewest in the league (you can't control this — just context)"
+                  >
+                    {paDiff < 0.05 ? "—" : `+${paDiff.toFixed(1)}`}
+                  </div>
                 </td>
               </tr>
             );
@@ -430,14 +443,14 @@ function SeasonTable({ rows }: { rows: EnrichedRow[] }) {
               <td className="px-4 py-3 text-zinc-500">{i + 1}</td>
               <td className="px-4 py-3">
                 <div className="font-medium text-white">
-                  {r.managerName}
+                  @{r.displayName}
                   {r.place && (
                     <span className="ml-1" title={`${ordinal(r.place)} place`}>
                       {medalEmoji(r.place)}
                     </span>
                   )}
                 </div>
-                <div className="text-xs text-zinc-500">@{r.displayName}</div>
+                <div className="text-xs text-zinc-500">{r.managerName}</div>
               </td>
               <td className="px-4 py-3 text-center font-medium text-white">
                 {formatRecord(r.wins, r.losses, r.ties)}
