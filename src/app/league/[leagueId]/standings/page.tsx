@@ -227,10 +227,10 @@ export default function LeaguePage() {
 
         <p className="mt-6 text-xs text-zinc-600">
           Record = regular-season record, with the playoff (PO) record beneath
-          · PF/PA = points for/against, each with its league rank (PF: most is
-          1st; PA: most is 1st, so the fewest allowed ranks last) · under PF is
-          points behind the top scorer; under PA is points allowed above the
-          stingiest defense · 🥇🥈🥉 = season finish.
+          · PF/PA = points for/against, each with its league rank (most is 1st)
+          · under PF (red) is points behind the top scorer; PA is shown in gray
+          as context — you can&rsquo;t play defense in fantasy — with points
+          above the league&rsquo;s fewest beneath · 🥇🥈🥉 = season finish.
         </p>
       </div>
     </>
@@ -408,10 +408,8 @@ function AllTimeTable({ rows }: { rows: AllTimeTableRow[] }) {
                     </sup>
                   </div>
                   <div
-                    className={`mt-0.5 text-xs ${
-                      paDiff < 0.05 ? "text-zinc-600" : "text-red-400"
-                    }`}
-                    title="Points allowed above the stingiest defense"
+                    className="mt-0.5 text-xs text-zinc-500"
+                    title="Points allowed above the fewest in the league (you can't control this — just context)"
                   >
                     {paDiff < 0.05 ? "—" : `+${paDiff.toFixed(1)}`}
                   </div>
