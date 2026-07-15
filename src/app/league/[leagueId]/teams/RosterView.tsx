@@ -8,6 +8,11 @@ import {
   getRosterInsights,
   type PlayerInsight,
 } from "@/lib/rosterInsights";
+import { getRoomStrength } from "@/lib/roomStrength";
+
+// A player's rank + points per game from the synced positional engine — the
+// single source of truth shared with the Positions tab and the needs engine.
+type RoomStat = { rank: number; mean: number };
 
 const POS_ORDER = ["QB", "RB", "WR", "TE", "K", "DEF"];
 
@@ -31,6 +36,9 @@ export function RosterView({
   const [insights, setInsights] = useState<Record<string, PlayerInsight> | null>(
     null
   );
+  // Synced-engine rank/ppg (by player id) + pool size per position.
+  const [roomRank, setRoomRank] = useState<Map<string, RoomStat>>(new Map());
+  const [poolByPos, setPoolByPos] = useState<Record<string, number>>({});
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -63,8 +71,30 @@ export function RosterView({
         setLoading(false);
       }
       // Heavier per-player stats load in the background.
-      const ins = await getRosterInsights(leagueId, rosterId, playerMap);
-      if (alive) setInsights(ins);
+      const [ins, roomRes] = await Promise.all([
+        getRosterInsights(leagueId, rosterId, playerMap),
+        getRoomStrength(leagueId),
+      ]);
+      if (!alive) return;
+      setInsights(ins);
+
+      // Positional rank + ppg from the synced engine (dedicated rooms only, not
+      // Flex), so a player reads the same rank here as on the Positions tab.
+      const rank = new Map<string, RoomStat>();
+      const pool: Record<string, number> = {};
+      for (const room of roomRes.rooms) {
+        if (room.position === "FLEX") continue;
+        let size = 0;
+        for (const team of room.teams) {
+          for (const p of team.players) {
+            rank.set(p.id, { rank: p.posRank, mean: p.mean });
+            size = Math.max(size, p.posRank);
+          }
+        }
+        pool[room.position] = size;
+      }
+      setRoomRank(rank);
+      setPoolByPos(pool);
     }
     load();
     return () => {
@@ -145,6 +175,12 @@ export function RosterView({
                     <StatCluster
                       insight={ins}
                       position={p.info.position}
+                      roomStat={roomRank.get(p.id)}
+                      pool={
+                        p.info.position
+                          ? poolByPos[p.info.position]
+                          : undefined
+                      }
                       loaded={insights != null}
                     />
                   </div>
@@ -221,15 +257,24 @@ function acqMeta(acq: {
 function StatCluster({
   insight,
   position,
+  roomStat,
+  pool,
   loaded,
 }: {
   insight: PlayerInsight | undefined;
   position: string | null;
+  roomStat?: RoomStat;
+  pool?: number;
   loaded: boolean;
 }) {
   if (!loaded) {
     return <span className="text-xs text-zinc-600">…</span>;
   }
+  // Prefer the synced engine for rank + ppg (matches the Positions tab / needs);
+  // the roster pipeline still supplies start rate, and rank for K/DEF.
+  const ppg = roomStat ? roomStat.mean : insight?.ppg ?? null;
+  const rank = roomStat ? roomStat.rank : insight?.rank ?? null;
+  const rankPool = roomStat ? pool ?? 0 : insight?.rankPool ?? 0;
   const rate = insight?.startRate;
   const rateColor =
     rate == null
@@ -253,16 +298,16 @@ function StatCluster({
       </div>
       <div>
         <div className="text-sm font-semibold text-white">
-          {insight?.ppg != null ? insight.ppg.toFixed(1) : "—"}
+          {ppg != null ? ppg.toFixed(1) : "—"}
         </div>
         <div className="text-[10px] text-zinc-600">ppg</div>
       </div>
       <div>
         <div className="text-sm font-semibold text-zinc-200">
-          {insight?.rank ? `${position}${insight.rank}` : "—"}
+          {rank ? `${position}${rank}` : "—"}
         </div>
         <div className="text-[10px] text-zinc-600">
-          {insight?.rank ? `of ${insight.rankPool}` : "rank"}
+          {rank ? `of ${rankPool}` : "rank"}
         </div>
       </div>
     </div>
