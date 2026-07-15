@@ -30,6 +30,82 @@ export function TeamScoreCard({
       : "",
   ].join(" ");
 
+  const inner = (
+    <>
+      <TeamIdentity t={t} />
+      <TeamStatsBody t={t} extra={extra} />
+    </>
+  );
+
+  return href ? (
+    <Link href={href} className={cls}>
+      {inner}
+    </Link>
+  ) : (
+    <div className={cls}>{inner}</div>
+  );
+}
+
+// The identity header: avatar, handle, badges, and a subtitle line.
+export function TeamIdentity({ t }: { t: TeamCard }) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-800">
+        {t.logo && (
+          <img
+            src={t.logo}
+            alt=""
+            className="h-11 w-11 object-cover"
+            onError={(e) => {
+              e.currentTarget.style.display = "none";
+            }}
+          />
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span className="truncate text-base font-semibold text-white">
+            {t.handle}
+          </span>
+          {t.place && <span className="shrink-0">{medalEmoji(t.place)}</span>}
+          {t.isMember && (
+            <span
+              title="On the app"
+              className="shrink-0 rounded-full border border-emerald-800 bg-emerald-950/50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-400"
+            >
+              ● Member
+            </span>
+          )}
+          {t.newOwner && (
+            <span className="shrink-0 rounded-full border border-amber-900 bg-amber-950/40 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-amber-400">
+              New
+            </span>
+          )}
+        </div>
+        <div className="truncate text-xs text-zinc-500">
+          {t.teamName}
+          {t.newOwner && t.tookOverFrom ? (
+            <> · took over from @{t.tookOverFrom}</>
+          ) : (
+            t.lastRank &&
+            t.lastSeason && <> · {t.lastSeason} {ordinal(t.lastRank)}</>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Everything below the identity: the all-time record hero, the uniform stat
+// grid, the head-to-head strip, and the activity footer. Exported so the
+// Rivals tab can reveal it inline when a compact row is expanded.
+export function TeamStatsBody({
+  t,
+  extra,
+}: {
+  t: TeamCard;
+  extra?: React.ReactNode;
+}) {
   // Record over the last 5 regular-season games.
   const l5w = t.form.filter((r) => r === "W").length;
   const l5l = t.form.filter((r) => r === "L").length;
@@ -38,110 +114,107 @@ export function TeamScoreCard({
   const allW = t.dynastyW + t.playoffW;
   const allL = t.dynastyL + t.playoffL;
 
-  const inner = (
+  return (
     <>
-      {/* Identity */}
-      <div className="flex items-center gap-3">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-800">
-          {t.logo && (
-            <img
-              src={t.logo}
-              alt=""
-              className="h-11 w-11 object-cover"
-              onError={(e) => {
-                e.currentTarget.style.display = "none";
-              }}
-            />
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <span className="truncate text-base font-semibold text-white">
-              {t.handle}
-            </span>
-            {t.place && <span className="shrink-0">{medalEmoji(t.place)}</span>}
-            {t.isMember && (
-              <span
-                title="On the app"
-                className="shrink-0 rounded-full border border-emerald-800 bg-emerald-950/50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-400"
-              >
-                ● Member
-              </span>
-            )}
-            {t.newOwner && (
-              <span className="shrink-0 rounded-full border border-amber-900 bg-amber-950/40 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-amber-400">
-                New
-              </span>
-            )}
-          </div>
-          <div className="truncate text-xs text-zinc-500">
-            {t.teamName}
-            {t.newOwner && t.tookOverFrom ? (
-              <> · took over from @{t.tookOverFrom}</>
-            ) : (
-              t.lastRank &&
-              t.lastSeason && <> · {t.lastSeason} {ordinal(t.lastRank)}</>
-            )}
-          </div>
-        </div>
-      </div>
-
       {/* Stats + radar side by side on wide screens */}
       <div className="mt-4 flex flex-col gap-2 md:flex-row md:items-stretch md:gap-3">
-      <div className="flex flex-1 flex-col gap-2">
-      {/* Record hero — all-time up front, reg/playoff split alongside */}
-      <div className="flex items-center justify-between gap-3 rounded-xl bg-zinc-950/40 px-4 py-3">
-        <div>
-          <div className="text-[10px] uppercase tracking-wide text-zinc-500">All-Time</div>
-          <div className="mt-0.5 flex items-baseline gap-2">
-            <span className="text-2xl font-bold leading-none text-white">
-              {allW}-{allL}
-            </span>
-            <span className="text-sm font-semibold text-zinc-500">{winPct(allW, allL)}</span>
+        <div className="flex flex-1 flex-col gap-2">
+          {/* Record hero — all-time up front, reg/playoff split alongside */}
+          <div className="flex items-center justify-between gap-3 rounded-xl bg-zinc-950/40 px-4 py-3">
+            <div>
+              <div className="text-[10px] uppercase tracking-wide text-zinc-500">
+                All-Time
+              </div>
+              <div className="mt-0.5 flex items-baseline gap-2">
+                <span className="text-2xl font-bold leading-none text-white">
+                  {allW}-{allL}
+                </span>
+                <span className="text-sm font-semibold text-zinc-500">
+                  {winPct(allW, allL)}
+                </span>
+              </div>
+            </div>
+            <div className="flex gap-1.5">
+              <RecPill
+                label="Reg"
+                rec={`${t.dynastyW}-${t.dynastyL}`}
+                pct={winPct(t.dynastyW, t.dynastyL)}
+              />
+              <RecPill
+                label="Playoffs"
+                rec={`${t.playoffW}-${t.playoffL}`}
+                pct={winPct(t.playoffW, t.playoffL)}
+              />
+            </div>
+          </div>
+
+          {/* Uniform stat grid */}
+          <div className="grid flex-1 grid-cols-3 content-center gap-y-3 rounded-xl bg-zinc-950/40 py-3">
+            <BigStat label="This Year" value={`${t.currentW}-${t.currentL}`} />
+            <BigStat
+              label="Streak"
+              value={t.streak ? `${t.streak.type}${t.streak.count}` : "—"}
+              color={
+                t.streak?.type === "W"
+                  ? "text-emerald-400"
+                  : t.streak?.type === "L"
+                  ? "text-red-400"
+                  : undefined
+              }
+            />
+            <BigStat
+              label="L5"
+              value={t.form.length ? `${l5w}-${l5l}` : "—"}
+              color={
+                l5w > l5l
+                  ? "text-emerald-400"
+                  : l5l > l5w
+                  ? "text-red-400"
+                  : undefined
+              }
+            />
+            <BigStat
+              label="Points For"
+              value={t.pfRank ? ordinal(t.pfRank) : "—"}
+              sub={
+                t.pf != null
+                  ? `${Math.round(t.pf).toLocaleString()} pts`
+                  : undefined
+              }
+              color={t.pfRank && t.pfRank <= 3 ? "text-emerald-400" : undefined}
+            />
+            <BigStat
+              label="Luck"
+              value={
+                t.luck != null
+                  ? `${t.luck >= 0 ? "+" : ""}${t.luck.toFixed(1)}`
+                  : "—"
+              }
+              color={
+                t.luck == null
+                  ? undefined
+                  : t.luck >= 0
+                  ? "text-emerald-400"
+                  : "text-red-400"
+              }
+              sub={
+                t.expWins != null && t.games != null
+                  ? `exp ${Math.round(t.expWins)}-${Math.round(
+                      t.games - t.expWins
+                    )}`
+                  : undefined
+              }
+            />
+            <BigStat
+              label="Titles"
+              value={t.rings > 0 ? `🏆 ${t.rings}` : "—"}
+              color={t.rings > 0 ? "text-amber-400" : undefined}
+              sub={t.silver || t.bronze ? `${t.silver}🥈 ${t.bronze}🥉` : undefined}
+            />
           </div>
         </div>
-        <div className="flex gap-1.5">
-          <RecPill label="Reg" rec={`${t.dynastyW}-${t.dynastyL}`} pct={winPct(t.dynastyW, t.dynastyL)} />
-          <RecPill label="Playoffs" rec={`${t.playoffW}-${t.playoffL}`} pct={winPct(t.playoffW, t.playoffL)} />
-        </div>
-      </div>
-
-      {/* Uniform stat grid */}
-      <div className="grid flex-1 grid-cols-3 content-center gap-y-3 rounded-xl bg-zinc-950/40 py-3">
-        <BigStat label="This Year" value={`${t.currentW}-${t.currentL}`} />
-        <BigStat
-          label="Streak"
-          value={t.streak ? `${t.streak.type}${t.streak.count}` : "—"}
-          color={t.streak?.type === "W" ? "text-emerald-400" : t.streak?.type === "L" ? "text-red-400" : undefined}
-        />
-        <BigStat
-          label="L5"
-          value={t.form.length ? `${l5w}-${l5l}` : "—"}
-          color={l5w > l5l ? "text-emerald-400" : l5l > l5w ? "text-red-400" : undefined}
-        />
-        <BigStat
-          label="Points For"
-          value={t.pfRank ? ordinal(t.pfRank) : "—"}
-          sub={t.pf != null ? `${Math.round(t.pf).toLocaleString()} pts` : undefined}
-          color={t.pfRank && t.pfRank <= 3 ? "text-emerald-400" : undefined}
-        />
-        <BigStat
-          label="Luck"
-          value={t.luck != null ? `${t.luck >= 0 ? "+" : ""}${t.luck.toFixed(1)}` : "—"}
-          color={t.luck == null ? undefined : t.luck >= 0 ? "text-emerald-400" : "text-red-400"}
-          sub={t.expWins != null && t.games != null ? `exp ${Math.round(t.expWins)}-${Math.round(t.games - t.expWins)}` : undefined}
-        />
-        <BigStat
-          label="Titles"
-          value={t.rings > 0 ? `🏆 ${t.rings}` : "—"}
-          color={t.rings > 0 ? "text-amber-400" : undefined}
-          sub={t.silver || t.bronze ? `${t.silver}🥈 ${t.bronze}🥉` : undefined}
-        />
-      </div>
-
-      </div>
-      {/* Positional strength radar (My Team) — beside the stats */}
-      {extra && <div className="shrink-0 md:w-[300px]">{extra}</div>}
+        {/* Positional strength radar (My Team) — beside the stats */}
+        {extra && <div className="shrink-0 md:w-[300px]">{extra}</div>}
       </div>
 
       {/* Your head-to-head vs this team (hidden on your own card) */}
@@ -163,14 +236,6 @@ export function TeamScoreCard({
         </span>
       </div>
     </>
-  );
-
-  return href ? (
-    <Link href={href} className={cls}>
-      {inner}
-    </Link>
-  ) : (
-    <div className={cls}>{inner}</div>
   );
 }
 

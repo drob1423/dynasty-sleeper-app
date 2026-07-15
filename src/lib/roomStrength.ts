@@ -13,6 +13,7 @@ import {
   getLeague,
   getLeagueUsers,
   getPlayerMap,
+  type FullRoster,
   type PlayerInfo,
 } from "./sleeper";
 
@@ -32,12 +33,18 @@ export type PlayerStat = {
   log?: [number, number, number][]; // chronological [seasonYY, week, points]
 };
 
+// "active" players are startable and count toward strength/needs. "taxi" and
+// "ir" players are shown for context but excluded from the ranking math — their
+// posRank is a would-be rank (where they'd land if activated), not a live one.
+export type PlayerStatus = "active" | "taxi" | "ir";
+
 export type RoomPlayer = PlayerStat & {
   id: string;
   name: string;
   team: string | null;
   posRank: number;   // rank within the position pool, by PPG (1 = best)
   isStarter: boolean; // part of the top-N core
+  status: PlayerStatus; // taxi/ir are display-only, not counted
 };
 
 export type RoomTeam = {
@@ -107,12 +114,32 @@ export async function getRoomStrength(
   const qualified = (pid: string) => (stats[pid]?.gp ?? 0) >= MIN_GAMES;
   const posOf = (pid: string) => playerMap[pid]?.position ?? "";
 
+  // Taxi-squad and IR players can't be started, so they don't count toward a
+  // team's live positional strength — rank on the startable roster only. They're
+  // still surfaced per room (with a badge) so you can see who's on the way back.
+  const taxiPids = new Set<string>();
+  const irPids = new Set<string>();
+  for (const r of rosters) {
+    r.taxi.forEach((p) => taxiPids.add(p));
+    r.reserve.forEach((p) => irPids.add(p));
+  }
+  const statusOf = (pid: string): PlayerStatus =>
+    taxiPids.has(pid) ? "taxi" : irPids.has(pid) ? "ir" : "active";
+
+  const activeByRoster = new Map<number, string[]>(
+    rosters.map((r) => [
+      r.roster_id,
+      r.players.filter((pid) => statusOf(pid) === "active"),
+    ])
+  );
+  const active = (r: FullRoster) => activeByRoster.get(r.roster_id) ?? [];
+
   // Each team's dedicated RB/WR/TE starters — excluded from the Flex room.
   const dedicated = new Map<number, Set<string>>();
   for (const r of rosters) {
     const set = new Set<string>();
     for (const pos of ["RB", "WR", "TE"] as const) {
-      (r.players ?? [])
+      active(r)
         .filter((pid) => posOf(pid) === pos && qualified(pid))
         .sort((a, b) => ppg(b) - ppg(a))
         .slice(0, nFor[pos])
@@ -127,17 +154,24 @@ export async function getRoomStrength(
 
     // League-wide pool rank at this position (by PPG).
     const pool = rosters
-      .flatMap((r) => r.players ?? [])
+      .flatMap((r) => active(r))
       .filter((pid) => eligible.has(posOf(pid)) && qualified(pid))
       .map((pid) => ({ pid, ppg: ppg(pid) }))
       .sort((a, b) => b.ppg - a.ppg);
     const posRankOf = new Map<string, number>();
     pool.forEach((x, i) => posRankOf.set(x.pid, i + 1));
 
+    // Would-be rank for a non-counted player: where they'd land among the live
+    // pool by PPG (best case, ties resolved in their favor).
+    const wouldBeRank = (pid: string) =>
+      pool.filter((x) => x.ppg > ppg(pid)).length + 1;
+
     const teams = rosters.map((r) => {
       const u = r.owner_id ? byOwner.get(r.owner_id) : undefined;
       const ded = g.key === "FLEX" ? dedicated.get(r.roster_id) ?? new Set() : new Set<string>();
-      const players: RoomPlayer[] = (r.players ?? [])
+
+      // Counted, startable players — these drive ranks, placement and needs.
+      const activePlayers: RoomPlayer[] = active(r)
         .filter((pid) => posRankOf.has(pid) && !ded.has(pid))
         .map((pid) => ({
           id: pid,
@@ -145,12 +179,40 @@ export async function getRoomStrength(
           team: playerMap[pid]?.team ?? null,
           posRank: posRankOf.get(pid)!,
           isStarter: false,
+          status: "active" as PlayerStatus,
           ...stats[pid],
         }))
         .sort((a, b) => b.mean - a.mean);
-      players.forEach((p, i) => (p.isStarter = i < N));
-      const core = players.slice(0, N);
-      const bench = players.slice(N);
+      activePlayers.forEach((p, i) => (p.isStarter = i < N));
+      const core = activePlayers.slice(0, N);
+      const bench = activePlayers.slice(N);
+
+      // Taxi/IR players — shown for context only, never counted. They surface in
+      // every room they're eligible for, Flex included (a flex-eligible IR/taxi
+      // player would otherwise vanish from the Flex view), each with a badge.
+      const inactivePlayers: RoomPlayer[] = r.players
+        .filter(
+          (pid) =>
+            statusOf(pid) !== "active" &&
+            eligible.has(posOf(pid)) &&
+            qualified(pid) &&
+            !ded.has(pid)
+        )
+        .map((pid) => ({
+          id: pid,
+          name: playerMap[pid]?.name ?? pid,
+          team: playerMap[pid]?.team ?? null,
+          posRank: wouldBeRank(pid),
+          isStarter: false,
+          status: statusOf(pid),
+          ...stats[pid],
+        }));
+
+      // Display list mixes active + inactive by production; counted math above
+      // only ever looks at `core`/`bench`, so the badges don't skew anything.
+      const players = [...activePlayers, ...inactivePlayers].sort(
+        (a, b) => b.mean - a.mean
+      );
       const avg = (arr: RoomPlayer[]) =>
         arr.length ? arr.reduce((s, p) => s + p.posRank, 0) / arr.length : null;
       return {

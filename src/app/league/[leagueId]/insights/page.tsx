@@ -76,7 +76,11 @@ export default function InsightsTab() {
   // One uniform points scale across every plot, rounded up to a clean number.
   const globalMax = Math.max(
     30,
-    ...rooms.flatMap((r) => r.teams.flatMap((t) => t.players.map((p) => p.max)))
+    ...rooms.flatMap((r) =>
+      r.teams.flatMap((t) =>
+        t.players.filter((p) => p.status === "active").map((p) => p.max)
+      )
+    )
   );
   const scaleMax = Math.ceil(globalMax / 10) * 10;
 
@@ -216,6 +220,8 @@ function TeamRow({
   expanded: boolean;
   onToggle: () => void;
 }) {
+  // Room Ranks compares startable strength — taxi/IR players stay out of the plots.
+  const shown = t.players.filter((p) => p.status === "active");
   return (
     <div className={`border-t border-zinc-800/60 ${t.isMe ? "bg-sky-950/20 ring-1 ring-inset ring-sky-900/50" : ""}`}>
       <button onClick={onToggle} className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-zinc-800/40">
@@ -236,13 +242,13 @@ function TeamRow({
 
       {expanded && (
         <div className="px-4 pb-4 pt-1">
-          {t.players.length === 0 ? (
+          {shown.length === 0 ? (
             <p className="text-xs text-zinc-600">No qualifying producers.</p>
           ) : (
             <>
               <AxisRuler scaleMax={scaleMax} />
               <div className="mt-1 space-y-2.5">
-                {t.players.map((p) => (
+                {shown.map((p) => (
                   <PlayerRow key={p.id} p={p} scaleMax={scaleMax} leagueId={leagueId} />
                 ))}
               </div>
