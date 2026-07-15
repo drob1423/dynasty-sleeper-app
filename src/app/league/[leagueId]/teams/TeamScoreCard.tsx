@@ -136,22 +136,26 @@ export function TeamStatsBody({
       {/* Stats + radar side by side on wide screens */}
       <div className="mt-4 flex flex-col gap-2 md:flex-row md:items-stretch md:gap-3">
         <div className="flex flex-1 flex-col gap-2">
-          {/* Record hero — all-time up front, reg/playoff split alongside */}
-          <div className="flex items-center justify-between gap-3 rounded-xl bg-zinc-950/40 px-4 py-3">
+          {/* Record hero — all-time up front (accented), reg/playoff alongside */}
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-900/40 bg-gradient-to-br from-emerald-500/[0.10] to-transparent px-4 py-3.5">
             <div>
-              <div className="text-[10px] uppercase tracking-wide text-zinc-500">
-                All-Time
+              <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/90">
+                All-Time Record
               </div>
-              <div className="mt-0.5 flex items-baseline gap-2">
-                <span className="text-2xl font-bold leading-none text-white">
+              <div className="mt-1 flex items-baseline gap-2">
+                <span className="text-3xl font-extrabold leading-none tracking-tight text-white">
                   {allW}-{allL}
                 </span>
-                <span className="text-sm font-semibold text-zinc-500">
+                <span
+                  className={`text-sm font-bold ${
+                    allW >= allL ? "text-emerald-400" : "text-zinc-400"
+                  }`}
+                >
                   {winPct(allW, allL)}
                 </span>
               </div>
             </div>
-            <div className="flex gap-1.5">
+            <div className="flex gap-2">
               <RecPill
                 label="Reg"
                 rec={`${t.dynastyW}-${t.dynastyL}`}
@@ -165,8 +169,8 @@ export function TeamStatsBody({
             </div>
           </div>
 
-          {/* Uniform stat grid */}
-          <div className="grid flex-1 grid-cols-3 content-center gap-y-3 rounded-xl bg-zinc-950/40 py-3">
+          {/* Stat tiles — each its own card so they read as distinct stats */}
+          <div className="grid flex-1 grid-cols-3 gap-2">
             <BigStat label="This Year" value={`${t.currentW}-${t.currentL}`} />
             <BigStat
               label="Streak"
@@ -304,10 +308,10 @@ function H2HStrip({ rec }: { rec: H2HRecord | null }) {
 
 function RecPill({ label, rec, pct }: { label: string; rec: string; pct: string }) {
   return (
-    <div className="rounded-lg bg-zinc-900 px-2.5 py-1 text-center">
-      <div className="text-[9px] uppercase tracking-wide text-zinc-600">{label}</div>
-      <div className="text-xs font-semibold text-zinc-200">{rec}</div>
-      <div className="text-[9px] text-zinc-500">{pct}</div>
+    <div className="min-w-[62px] rounded-xl border border-zinc-700/50 bg-zinc-950/60 px-2.5 py-1.5 text-center">
+      <div className="text-[9px] font-bold uppercase tracking-wide text-zinc-500">{label}</div>
+      <div className="mt-0.5 text-sm font-extrabold text-zinc-100">{rec}</div>
+      <div className="text-[9px] text-zinc-600">{pct}</div>
     </div>
   );
 }
@@ -324,14 +328,14 @@ function BigStat({
   sub?: string;
 }) {
   return (
-    <div className="px-1 text-center">
-      <div className="text-[10px] uppercase tracking-wide text-zinc-500">
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900 px-2 py-2.5 text-center">
+      <div className="text-[9.5px] font-bold uppercase tracking-wide text-zinc-400">
         {label}
       </div>
-      <div className={`mt-0.5 text-base font-bold ${color ?? "text-white"}`}>
+      <div className={`mt-1.5 text-xl font-extrabold ${color ?? "text-white"}`}>
         {value}
       </div>
-      {sub && <div className="text-[10px] text-zinc-600">{sub}</div>}
+      {sub && <div className="mt-1 text-[9.5px] text-zinc-600">{sub}</div>}
     </div>
   );
 }
