@@ -10,6 +10,7 @@ import {
   getMatchupLog,
   type RivalH2H,
   type TxItem,
+  type TradeSide,
   type H2HGame,
   type TopPlayer,
   type Lineup,
@@ -188,21 +189,69 @@ function TxRow({ t }: { t: TxItem }) {
         </span>
         <span className="shrink-0 text-[11px] text-zinc-600">{fmtDate(t.ts)}</span>
       </div>
+      {t.type === "trade" && t.sides ? (
+        <div className="space-y-2.5">
+          {t.sides.map((s) => (
+            <TradeSideView key={s.rosterId} s={s} />
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-1">
+          {t.adds.map((p, i) => (
+            <MoveLine key={`a${i}`} dir="in" p={p} />
+          ))}
+          {t.drops.map((p, i) => (
+            <MoveLine key={`d${i}`} dir="out" p={p} />
+          ))}
+          {t.picks > 0 && (
+            <div className="text-xs text-zinc-500">
+              + {t.picks} draft pick{t.picks === 1 ? "" : "s"}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// One manager's side of a trade — everything they received.
+function TradeSideView({ s }: { s: TradeSide }) {
+  const empty = s.acquired.length === 0 && s.picks.length === 0 && s.faab === 0;
+  return (
+    <div className="rounded-lg bg-zinc-950/40 px-3 py-2">
+      <div className="mb-1 text-[11px] font-semibold text-zinc-400">
+        {s.handle} <span className="font-normal text-zinc-600">received</span>
+      </div>
       <div className="space-y-1">
-        {t.adds.map((p, i) => (
-          <MoveLine key={`a${i}`} dir="in" p={p} />
+        {s.acquired.map((p, i) => (
+          <MoveLine key={`p${i}`} dir="in" p={p} />
         ))}
-        {t.drops.map((p, i) => (
-          <MoveLine key={`d${i}`} dir="out" p={p} />
+        {s.picks.map((pk, i) => (
+          <div key={`k${i}`} className="flex items-center gap-2 text-sm">
+            <span className="shrink-0 text-xs font-bold text-emerald-500">+</span>
+            <span className="text-zinc-200">
+              {pk.season} {ordinalRound(pk.round)}
+            </span>
+            {pk.originalHandle && (
+              <span className="text-[11px] text-zinc-600">via {pk.originalHandle}</span>
+            )}
+          </div>
         ))}
-        {t.picks > 0 && (
-          <div className="text-xs text-zinc-500">
-            + {t.picks} draft pick{t.picks === 1 ? "" : "s"}
+        {s.faab > 0 && (
+          <div className="flex items-center gap-2 text-sm">
+            <span className="shrink-0 text-xs font-bold text-emerald-500">+</span>
+            <span className="text-zinc-200">${s.faab} FAAB</span>
           </div>
         )}
+        {empty && <div className="text-xs text-zinc-600">Nothing</div>}
       </div>
     </div>
   );
+}
+
+function ordinalRound(r: number): string {
+  const s = r === 1 ? "1st" : r === 2 ? "2nd" : r === 3 ? "3rd" : `${r}th`;
+  return `${s} round pick`;
 }
 
 function MoveLine({ dir, p }: { dir: "in" | "out"; p: TopPlayerLite }) {

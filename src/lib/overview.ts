@@ -101,13 +101,30 @@ export type TxItem = {
   type: "trade" | "waiver" | "free_agent" | "commissioner" | "other";
   ts: number; // created (ms)
   season: string;
-  adds: TopPlayerLite[]; // players this roster acquired
-  drops: TopPlayerLite[]; // players this roster gave up
+  adds: TopPlayerLite[]; // players this roster acquired (non-trade)
+  drops: TopPlayerLite[]; // players this roster gave up (non-trade)
   faab: number | null; // waiver bid, or net FAAB in a trade
   partners: string[]; // other managers involved (trades)
   picks: number; // draft picks involved (trades)
+  sides?: TradeSide[]; // full both-sides breakdown for trades
 };
 type TopPlayerLite = { name: string; pos: string | null; team: string | null };
+
+// A draft pick changing hands, e.g. { season: "2026", round: 1 }.
+export type TxPick = {
+  season: string;
+  round: number;
+  originalHandle: string | null; // set when the pick didn't originate with the acquirer
+};
+
+// One manager's haul in a trade — what they walked away with.
+export type TradeSide = {
+  rosterId: number;
+  handle: string;
+  acquired: TopPlayerLite[];
+  picks: TxPick[];
+  faab: number; // FAAB received in the deal
+};
 
 // This franchise's most recent N transactions, newest first, walking back
 // through the dynasty chain until we have enough (or run out of seasons).
@@ -172,7 +189,44 @@ export async function getRecentTransactions(
         const partners = ids
           .filter((id) => id !== rosterId)
           .map((id) => handleByRoster.get(id) || "unknown");
-        const picks = Array.isArray(t.draft_picks) ? t.draft_picks.length : 0;
+        const rawPicks: {
+          season: string | number;
+          round: number;
+          roster_id?: number;
+          owner_id?: number;
+        }[] = Array.isArray(t.draft_picks) ? t.draft_picks : [];
+        const picks = rawPicks.length;
+
+        // For trades, break out what EACH roster acquired (players, picks, FAAB)
+        // so the full deal is visible — not just the viewed team's side. The
+        // viewed roster is listed first.
+        let sides: TradeSide[] | undefined;
+        if (t.type === "trade") {
+          const budget: { sender: number; receiver: number; amount: number }[] =
+            Array.isArray(t.waiver_budget) ? t.waiver_budget : [];
+          sides = [...ids]
+            .sort((a, b) => (a === rosterId ? -1 : b === rosterId ? 1 : 0))
+            .map((rid) => ({
+              rosterId: rid,
+              handle: handleByRoster.get(rid) || "unknown",
+              acquired: Object.entries(t.adds ?? {})
+                .filter(([, r]) => r === rid)
+                .map(([pid]) => nameOf(pid)),
+              picks: rawPicks
+                .filter((p) => p.owner_id === rid)
+                .map((p) => ({
+                  season: String(p.season),
+                  round: p.round,
+                  originalHandle:
+                    p.roster_id != null && p.roster_id !== rid
+                      ? handleByRoster.get(p.roster_id) ?? null
+                      : null,
+                })),
+              faab: budget
+                .filter((b) => b.receiver === rid)
+                .reduce((s, b) => s + b.amount, 0),
+            }));
+        }
 
         const type: TxItem["type"] =
           t.type === "trade" || t.type === "waiver" || t.type === "free_agent"
@@ -190,6 +244,7 @@ export async function getRecentTransactions(
           faab,
           partners,
           picks,
+          sides,
         });
       }
     }
