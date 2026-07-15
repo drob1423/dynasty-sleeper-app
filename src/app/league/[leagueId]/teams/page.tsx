@@ -1,7 +1,7 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { loadTeamCards, type TeamCard } from "./teamData";
@@ -75,6 +75,9 @@ function RivalsWheel({
   );
   const refs = useRef<Map<number, HTMLElement>>(new Map());
   const intersecting = useRef<Set<number>>(new Set());
+  // When the focus moves, we pin the newly-focused card in place so its
+  // expansion (and the previous card's collapse) doesn't yank the page.
+  const anchor = useRef<{ id: number; top: number } | null>(null);
 
   useEffect(() => {
     // Pick, among the cards currently crossing the center band, the one whose
@@ -93,7 +96,17 @@ function RivalsWheel({
           best = id;
         }
       });
-      if (best !== null) setActiveId(best);
+      if (best !== null) {
+        setActiveId((prev) => {
+          if (best !== prev) {
+            // Record where the soon-to-be-focused card sits right now so we can
+            // hold it there after it expands (see useLayoutEffect below).
+            const el = refs.current.get(best!);
+            if (el) anchor.current = { id: best!, top: el.getBoundingClientRect().top };
+          }
+          return best!;
+        });
+      }
     }
 
     const observer = new IntersectionObserver(
@@ -113,8 +126,25 @@ function RivalsWheel({
     return () => observer.disconnect();
   }, [rivals]);
 
+  // After the focus change re-renders (heights now updated), nudge the scroll
+  // so the focused card stays exactly where it was — no jump.
+  useLayoutEffect(() => {
+    const a = anchor.current;
+    if (!a || a.id !== activeId) return;
+    const el = refs.current.get(a.id);
+    if (el) {
+      const delta = el.getBoundingClientRect().top - a.top;
+      if (delta) window.scrollBy(0, delta);
+    }
+    anchor.current = null;
+  }, [activeId]);
+
+  // Half-screen spacers so the first and last rivals can reach the center.
+  const spacer = <div aria-hidden className="h-[42vh]" />;
+
   return (
     <div className="space-y-2">
+      {spacer}
       {rivals.map((t) => (
         <RivalRow
           key={t.rosterId}
@@ -132,6 +162,7 @@ function RivalsWheel({
           }
         />
       ))}
+      {spacer}
     </div>
   );
 }
@@ -175,7 +206,7 @@ function RivalRow({
       ref={registerRef}
       data-rid={t.rosterId}
       style={{ scrollMarginTop: "45vh", scrollMarginBottom: "45vh" }}
-      className={`overflow-hidden rounded-2xl border bg-zinc-900 transition-all duration-300 ${
+      className={`overflow-hidden rounded-2xl border bg-zinc-900 transition-[opacity,border-color] duration-300 ${
         active
           ? "border-emerald-700/60 opacity-100"
           : "border-zinc-800 opacity-60"
@@ -258,9 +289,10 @@ function RivalRow({
         </div>
       </button>
 
-      {/* Expanded detail — animates open/closed via the grid-rows trick */}
+      {/* Expanded detail. Height snaps instantly (so the scroll-compensation
+          measures the final size); only the content opacity fades. */}
       <div
-        className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${
+        className={`grid transition-opacity duration-200 ${
           active ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
         }`}
       >
