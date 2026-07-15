@@ -5,9 +5,9 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { loadTeamCards, type TeamCard } from "./teamData";
-import { ordinal } from "./TeamScoreCard";
 import { getRoomStrength } from "@/lib/roomStrength";
-import { computeTradeProfiles, shortPos, type TradeProfile } from "./tradeProfile";
+import { computeTradeProfiles, type TradeProfile } from "./tradeProfile";
+import { NeedsStrengths } from "./NeedsStrengths";
 
 export default function RivalsTab() {
   const params = useParams();
@@ -157,22 +157,7 @@ function RivalCard({
       </div>
 
       {/* Positional needs & strengths — the trade-scouting read */}
-      {profile && (profile.needs.length > 0 || profile.strengths.length > 0) && (
-        <div className="mt-3.5 space-y-2">
-          <ChipRow
-            label="Needs"
-            empty="Roster looks set"
-            chips={profile.needs.map((n) => n.label)}
-            tone="need"
-          />
-          <ChipRow
-            label="Strong"
-            empty="No standout position"
-            chips={profile.strengths.map((s) => `${shortPos(s.pos)} ${ordinal(s.rank)}`)}
-            tone="strong"
-          />
-        </div>
-      )}
+      <NeedsStrengths profile={profile} className="mt-3.5" />
 
       {/* Trophy case */}
       <div className="mt-3.5 flex items-center gap-2 border-t border-zinc-800/70 pt-3 text-[13px]">
@@ -205,44 +190,6 @@ function StatTile({
         {value}
       </div>
       {sub && <div className="mt-1 text-[10px] text-zinc-600">{sub}</div>}
-    </div>
-  );
-}
-
-function ChipRow({
-  label,
-  chips,
-  tone,
-  empty,
-}: {
-  label: string;
-  chips: string[];
-  tone: "need" | "strong";
-  empty: string;
-}) {
-  const chipClass =
-    tone === "need"
-      ? "border-red-900/70 bg-red-950/40 text-red-300"
-      : "border-emerald-900/70 bg-emerald-950/40 text-emerald-300";
-  return (
-    <div className="flex items-start gap-2">
-      <span className="mt-1 w-12 shrink-0 text-[9px] font-semibold uppercase tracking-wide text-zinc-600">
-        {label}
-      </span>
-      {chips.length ? (
-        <div className="flex flex-wrap gap-1.5">
-          {chips.map((c) => (
-            <span
-              key={c}
-              className={`rounded-md border px-2 py-0.5 text-xs font-semibold ${chipClass}`}
-            >
-              {c}
-            </span>
-          ))}
-        </div>
-      ) : (
-        <span className="mt-0.5 text-xs text-zinc-600">{empty}</span>
-      )}
     </div>
   );
 }
