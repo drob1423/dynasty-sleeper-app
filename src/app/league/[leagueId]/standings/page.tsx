@@ -332,7 +332,7 @@ function AllTimeTable({ rows }: { rows: AllTimeTableRow[] }) {
     <div className="overflow-x-auto rounded-2xl border border-zinc-800 bg-zinc-900">
       <table className="w-full min-w-[360px] text-sm">
         <thead>
-          <tr className="border-b border-zinc-800 text-left text-xs uppercase tracking-wide text-zinc-500">
+          <tr className="border-b border-zinc-700 bg-zinc-800/50 text-left text-xs font-semibold uppercase tracking-wide text-zinc-300">
             <th className="px-2 py-3 font-medium">Team</th>
             <th className="px-2 py-3 text-center font-medium">Szn</th>
             <th className={`px-2 py-3 text-center font-medium ${groupEdge}`}>
@@ -444,7 +444,7 @@ function SeasonTable({ rows }: { rows: EnrichedRow[] }) {
     <div className="overflow-x-auto rounded-2xl border border-zinc-800 bg-zinc-900">
       <table className="w-full min-w-[360px] text-sm">
         <thead>
-          <tr className="border-b border-zinc-800 text-left text-xs uppercase tracking-wide text-zinc-500">
+          <tr className="border-b border-zinc-700 bg-zinc-800/50 text-left text-xs font-semibold uppercase tracking-wide text-zinc-300">
             <th className="px-2 py-3 font-medium">Team</th>
             <th className="px-2 py-3 text-center font-medium">Record</th>
             <th className="px-2 py-3 text-right font-medium">PF</th>
