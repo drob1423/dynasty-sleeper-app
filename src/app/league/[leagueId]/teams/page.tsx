@@ -55,7 +55,7 @@ export default function RivalsTab() {
       <RivalsWheel rivals={rivals} leagueId={leagueId} />
 
       <p className="mt-4 text-center text-xs text-zinc-600">
-        Scroll — the rival in the middle opens automatically.
+        Scroll freely — the rival you land on opens automatically.
       </p>
     </>
   );
@@ -74,60 +74,55 @@ function RivalsWheel({
     rivals[0]?.rosterId ?? null
   );
   const refs = useRef<Map<number, HTMLElement>>(new Map());
-  const intersecting = useRef<Set<number>>(new Set());
-  // When the focus moves, we pin the newly-focused card in place so its
-  // expansion (and the previous card's collapse) doesn't yank the page.
+  // After we settle on a card, we pin it so its expansion doesn't jump. This
+  // only runs once scrolling has stopped, so it never fights momentum.
   const anchor = useRef<{ id: number; top: number } | null>(null);
 
   useEffect(() => {
-    // Pick, among the cards currently crossing the center band, the one whose
-    // middle is closest to the exact center of the viewport.
-    function pickCentered() {
+    let timer: ReturnType<typeof setTimeout>;
+
+    // The card whose middle is nearest the center of the screen right now.
+    function centeredId(): number | null {
       const center = window.innerHeight / 2;
       let best: number | null = null;
       let bestDist = Infinity;
-      intersecting.current.forEach((id) => {
-        const el = refs.current.get(id);
-        if (!el) return;
+      refs.current.forEach((el, id) => {
         const r = el.getBoundingClientRect();
+        if (r.bottom < 0 || r.top > window.innerHeight) return; // off-screen
         const dist = Math.abs((r.top + r.bottom) / 2 - center);
         if (dist < bestDist) {
           bestDist = dist;
           best = id;
         }
       });
-      if (best !== null) {
-        setActiveId((prev) => {
-          if (best !== prev) {
-            // Record where the soon-to-be-focused card sits right now so we can
-            // hold it there after it expands (see useLayoutEffect below).
-            const el = refs.current.get(best!);
-            if (el) anchor.current = { id: best!, top: el.getBoundingClientRect().top };
-          }
-          return best!;
-        });
+      return best;
+    }
+
+    // Called ~a beat after scrolling stops — the flick keeps its full,
+    // native momentum; we only open the landed-on card here.
+    function settle() {
+      const best = centeredId();
+      if (best !== null && best !== activeId) {
+        const el = refs.current.get(best);
+        if (el) anchor.current = { id: best, top: el.getBoundingClientRect().top };
+        setActiveId(best);
       }
     }
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          const id = Number((e.target as HTMLElement).dataset.rid);
-          if (e.isIntersecting) intersecting.current.add(id);
-          else intersecting.current.delete(id);
-        }
-        pickCentered();
-      },
-      // A thin band across the vertical middle of the screen.
-      { rootMargin: "-45% 0px -45% 0px", threshold: 0 }
-    );
+    function onScroll() {
+      clearTimeout(timer);
+      timer = setTimeout(settle, 120);
+    }
 
-    refs.current.forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
-  }, [rivals]);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      clearTimeout(timer);
+    };
+  }, [activeId]);
 
-  // After the focus change re-renders (heights now updated), nudge the scroll
-  // so the focused card stays exactly where it was — no jump.
+  // Once the landed-on card expands, nudge the scroll so it stays put. Runs
+  // only after scrolling has stopped, so momentum is already spent.
   useLayoutEffect(() => {
     const a = anchor.current;
     if (!a || a.id !== activeId) return;
@@ -155,11 +150,12 @@ function RivalsWheel({
             if (el) refs.current.set(t.rosterId, el);
             else refs.current.delete(t.rosterId);
           }}
-          onActivate={() =>
+          onActivate={() => {
+            setActiveId(t.rosterId);
             refs.current
               .get(t.rosterId)
-              ?.scrollIntoView({ behavior: "smooth", block: "center" })
-          }
+              ?.scrollIntoView({ behavior: "smooth", block: "center" });
+          }}
         />
       ))}
       {spacer}
