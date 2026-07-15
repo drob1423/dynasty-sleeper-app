@@ -131,25 +131,24 @@ export function TeamStatsBody({
   const allW = t.dynastyW + t.playoffW;
   const allL = t.dynastyL + t.playoffL;
 
-  // Best career finish: headline the top medal they've earned (champion >
-  // runner-up > 3rd) with how many, then tally any lesser medals below it.
-  const best =
-    t.rings > 0
-      ? { emoji: "🥇", n: t.rings, color: "text-amber-400" }
-      : t.silver > 0
-      ? { emoji: "🥈", n: t.silver, color: "text-zinc-300" }
-      : t.bronze > 0
-      ? { emoji: "🥉", n: t.bronze, color: "text-amber-600" }
-      : null;
-  const lesserMedals = best
-    ? [
-        best.emoji !== "🥇" && t.rings > 0 ? `${t.rings}🥇` : null,
-        best.emoji !== "🥈" && t.silver > 0 ? `${t.silver}🥈` : null,
-        best.emoji !== "🥉" && t.bronze > 0 ? `${t.bronze}🥉` : null,
-      ]
-        .filter(Boolean)
-        .join(" ")
-    : "";
+  // Best career finish = the actual numerical placement (1st … last). Any
+  // hardware (medals) is tallied beneath it so a top finish shows its trophy
+  // without the medal itself implying the place.
+  const finishColor =
+    t.bestFinish === 1
+      ? "text-amber-400"
+      : t.bestFinish === 2
+      ? "text-zinc-300"
+      : t.bestFinish === 3
+      ? "text-amber-600"
+      : undefined;
+  const hardware = [
+    t.rings > 0 ? `${t.rings}🥇` : null,
+    t.silver > 0 ? `${t.silver}🥈` : null,
+    t.bronze > 0 ? `${t.bronze}🥉` : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <>
@@ -248,9 +247,9 @@ export function TeamStatsBody({
             />
             <BigStat
               label="Best Finish"
-              value={best ? `${best.emoji} ${best.n}` : "—"}
-              color={best?.color}
-              sub={lesserMedals || undefined}
+              value={t.bestFinish ? ordinal(t.bestFinish) : "—"}
+              color={finishColor}
+              sub={hardware || undefined}
             />
           </div>
         </div>

@@ -725,6 +725,7 @@ export type PlayoffResult = {
   playoffWins: number; // wins in the championship bracket
   playoffLosses: number; // losses in the championship bracket
   place: number | null; // 1, 2, or 3 if they medaled; else null
+  finish: number | null; // full final placement (1 = champion … N = last)
 };
 
 async function fetchBracket(leagueId: string, which: "winners" | "losers") {
@@ -753,6 +754,7 @@ export async function getPlayoffResults(
         playoffWins: 0,
         playoffLosses: 0,
         place: null,
+        finish: null,
       };
       map.set(rid, e);
     }
@@ -802,6 +804,46 @@ export async function getPlayoffResults(
     if (t2 !== null) ensure(t2).inConsolation = true;
   }
 
+  // Full final placement. Sleeper marks each placement game with `p` = the
+  // place its winner earns (loser gets p+1). The championship bracket's `p`s are
+  // absolute from the top (p=1 → 1st/2nd, p=3 → 3rd/4th, …). The consolation
+  // bracket fills the places BELOW the championship side; rather than trust
+  // whether Sleeper numbers it from 1 or absolutely, we order its placement
+  // games by `p` and slot the pairs in right after the last championship place.
+  // Games with no winner yet (unplayed) are skipped, so an in-progress season
+  // yields no finishes.
+  const resolveLoser = (
+    m: { t1?: unknown; t2?: unknown; w?: unknown; l?: unknown },
+    w: number | null
+  ): number | null => {
+    if (typeof m.l === "number") return m.l;
+    const t1 = typeof m.t1 === "number" ? m.t1 : null;
+    const t2 = typeof m.t2 === "number" ? m.t2 : null;
+    if (w !== null && t1 !== null && t2 !== null) return w === t1 ? t2 : t1;
+    return null;
+  };
+
+  let lastTop = 0;
+  for (const m of winners) {
+    if (typeof m.p !== "number") continue;
+    const w = typeof m.w === "number" ? m.w : null;
+    const l = resolveLoser(m, w);
+    if (w !== null) ensure(w).finish = m.p;
+    if (l !== null) ensure(l).finish = m.p + 1;
+    lastTop = Math.max(lastTop, m.p + 1);
+  }
+
+  const consolation = losers
+    .filter((m) => typeof m.p === "number" && typeof m.w === "number")
+    .sort((a, b) => a.p - b.p);
+  let next = lastTop;
+  for (const m of consolation) {
+    const w = m.w as number;
+    const l = resolveLoser(m, w);
+    ensure(w).finish = ++next;
+    if (l !== null) ensure(l).finish = ++next;
+  }
+
   return map;
 }
 
@@ -829,6 +871,7 @@ export function enrichRows(
       playoffWins: p?.playoffWins ?? 0,
       playoffLosses: p?.playoffLosses ?? 0,
       place: p?.place ?? null,
+      finish: p?.finish ?? null,
     };
   });
 }

@@ -52,6 +52,8 @@ export type TeamCard = {
   rings: number; // championships (1st-place finishes)
   silver: number; // 2nd-place finishes
   bronze: number; // 3rd-place finishes
+  bestFinish: number | null; // best final placement across the dynasty (1 = title)
+  leagueSize: number; // teams in the league (denominator for a finish)
 };
 
 // Load every team's scorecard data for a league. Shared by the Rivals tab and
@@ -165,6 +167,36 @@ export async function loadTeamCards(
     })
   );
 
+  // Best final placement across the dynasty. The bracket gives finishes for the
+  // teams it placed; any team a season didn't place (e.g. missed the playoffs
+  // entirely) fills the remaining spots by that season's regular-season order,
+  // so every team gets a finish and "best" is the lowest number they've hit.
+  const rostersByLeagueId = new Map(
+    chain.map((s, i) => [s.league_id, perSeasonRosters[i]])
+  );
+  const perSeasonRostersPlayed = playedOldestFirst.map(
+    (s) => rostersByLeagueId.get(s.league_id) ?? []
+  );
+  const bestFinish = new Map<number, number>();
+  playoffsPerSeason.forEach((pr, i) => {
+    const seasonRosters = perSeasonRostersPlayed[i] ?? [];
+    const finishes = new Map<number, number>();
+    let maxPlaced = 0;
+    pr.forEach((v, rid) => {
+      if (v.finish != null) {
+        finishes.set(rid, v.finish);
+        maxPlaced = Math.max(maxPlaced, v.finish);
+      }
+    });
+    seasonRosters
+      .filter((r) => !finishes.has(r.roster_id))
+      .sort((a, b) => b.wins - a.wins || b.fpts - a.fpts)
+      .forEach((r, k) => finishes.set(r.roster_id, maxPlaced + k + 1));
+    finishes.forEach((place, rid) =>
+      bestFinish.set(rid, Math.min(bestFinish.get(rid) ?? Infinity, place))
+    );
+  });
+
   // Last completed season: points for + rank by PF.
   const pfByRoster = new Map<number, number>();
   const pfRankByRoster = new Map<number, number>();
@@ -262,6 +294,8 @@ export async function loadTeamCards(
       rings: medals.get(r.roster_id)?.g ?? 0,
       silver: medals.get(r.roster_id)?.s ?? 0,
       bronze: medals.get(r.roster_id)?.b ?? 0,
+      bestFinish: bestFinish.get(r.roster_id) ?? null,
+      leagueSize: currentFull.length,
       faab: faabBudget > 0 ? faabBudget - r.waiverBudgetUsed : null,
     };
   });
