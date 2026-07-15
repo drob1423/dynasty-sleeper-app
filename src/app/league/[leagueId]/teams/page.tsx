@@ -1,7 +1,7 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { loadTeamCards, type TeamCard } from "./teamData";
@@ -15,6 +15,8 @@ export default function RivalsTab() {
   const [rivals, setRivals] = useState<TeamCard[]>([]);
   const [lastSeason, setLastSeason] = useState<string | null>(null);
   const [members, setMembers] = useState({ on: 0, total: 0 });
+  // rosterIds whose full scorecard is expanded (multiple may be open).
+  const [open, setOpen] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     async function load() {
@@ -34,6 +36,15 @@ export default function RivalsTab() {
     load();
   }, [leagueId]);
 
+  function toggle(rosterId: number) {
+    setOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(rosterId)) next.delete(rosterId);
+      else next.add(rosterId);
+      return next;
+    });
+  }
+
   if (loading) {
     return <p className="py-10 text-center text-zinc-400">Loading rivals…</p>;
   }
@@ -52,130 +63,32 @@ export default function RivalsTab() {
         </p>
       </div>
 
-      <RivalsWheel rivals={rivals} leagueId={leagueId} />
-
-      <p className="mt-4 text-center text-xs text-zinc-600">
-        Scroll freely — the rival you land on opens automatically.
-      </p>
+      <div className="space-y-2">
+        {rivals.map((t) => (
+          <RivalRow
+            key={t.rosterId}
+            t={t}
+            leagueId={leagueId}
+            expanded={open.has(t.rosterId)}
+            onToggle={() => toggle(t.rosterId)}
+          />
+        ))}
+      </div>
     </>
   );
 }
 
-// A scroll-driven list: whichever card sits nearest the vertical center of the
-// screen expands to its full scorecard; the rest stay compact and dimmed.
-function RivalsWheel({
-  rivals,
-  leagueId,
-}: {
-  rivals: TeamCard[];
-  leagueId: string;
-}) {
-  const [activeId, setActiveId] = useState<number | null>(
-    rivals[0]?.rosterId ?? null
-  );
-  const refs = useRef<Map<number, HTMLElement>>(new Map());
-  // After we settle on a card, we pin it so its expansion doesn't jump. This
-  // only runs once scrolling has stopped, so it never fights momentum.
-  const anchor = useRef<{ id: number; top: number } | null>(null);
-
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
-
-    // The card whose middle is nearest the center of the screen right now.
-    function centeredId(): number | null {
-      const center = window.innerHeight / 2;
-      let best: number | null = null;
-      let bestDist = Infinity;
-      refs.current.forEach((el, id) => {
-        const r = el.getBoundingClientRect();
-        if (r.bottom < 0 || r.top > window.innerHeight) return; // off-screen
-        const dist = Math.abs((r.top + r.bottom) / 2 - center);
-        if (dist < bestDist) {
-          bestDist = dist;
-          best = id;
-        }
-      });
-      return best;
-    }
-
-    // Called ~a beat after scrolling stops — the flick keeps its full,
-    // native momentum; we only open the landed-on card here.
-    function settle() {
-      const best = centeredId();
-      if (best !== null && best !== activeId) {
-        const el = refs.current.get(best);
-        if (el) anchor.current = { id: best, top: el.getBoundingClientRect().top };
-        setActiveId(best);
-      }
-    }
-
-    function onScroll() {
-      clearTimeout(timer);
-      timer = setTimeout(settle, 120);
-    }
-
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      clearTimeout(timer);
-    };
-  }, [activeId]);
-
-  // Once the landed-on card expands, nudge the scroll so it stays put. Runs
-  // only after scrolling has stopped, so momentum is already spent.
-  useLayoutEffect(() => {
-    const a = anchor.current;
-    if (!a || a.id !== activeId) return;
-    const el = refs.current.get(a.id);
-    if (el) {
-      const delta = el.getBoundingClientRect().top - a.top;
-      if (delta) window.scrollBy(0, delta);
-    }
-    anchor.current = null;
-  }, [activeId]);
-
-  // Half-screen spacers so the first and last rivals can reach the center.
-  const spacer = <div aria-hidden className="h-[42vh]" />;
-
-  return (
-    <div className="space-y-2">
-      {spacer}
-      {rivals.map((t) => (
-        <RivalRow
-          key={t.rosterId}
-          t={t}
-          leagueId={leagueId}
-          active={activeId === t.rosterId}
-          registerRef={(el) => {
-            if (el) refs.current.set(t.rosterId, el);
-            else refs.current.delete(t.rosterId);
-          }}
-          onActivate={() => {
-            setActiveId(t.rosterId);
-            refs.current
-              .get(t.rosterId)
-              ?.scrollIntoView({ behavior: "smooth", block: "center" });
-          }}
-        />
-      ))}
-      {spacer}
-    </div>
-  );
-}
-
-// A compact, scannable row whose full scorecard reveals when it's centered.
+// A compact, scannable row that expands to the full scorecard on tap.
 function RivalRow({
   t,
   leagueId,
-  active,
-  registerRef,
-  onActivate,
+  expanded,
+  onToggle,
 }: {
   t: TeamCard;
   leagueId: string;
-  active: boolean;
-  registerRef: (el: HTMLElement | null) => void;
-  onActivate: () => void;
+  expanded: boolean;
+  onToggle: () => void;
 }) {
   const allW = t.dynastyW + t.playoffW;
   const allL = t.dynastyL + t.playoffL;
@@ -198,21 +111,12 @@ function RivalRow({
       : "text-zinc-400";
 
   return (
-    <div
-      ref={registerRef}
-      data-rid={t.rosterId}
-      style={{ scrollMarginTop: "45vh", scrollMarginBottom: "45vh" }}
-      className={`overflow-hidden rounded-2xl border bg-zinc-900 transition-[opacity,border-color] duration-300 ${
-        active
-          ? "border-emerald-700/60 opacity-100"
-          : "border-zinc-800 opacity-60"
-      }`}
-    >
-      {/* Compact header — always visible. Tapping re-centers this card. */}
+    <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
+      {/* Compact header — always visible, toggles the expansion */}
       <button
-        onClick={onActivate}
-        aria-expanded={active}
-        className="flex w-full items-center gap-3 p-3.5 text-left"
+        onClick={onToggle}
+        aria-expanded={expanded}
+        className="flex w-full items-center gap-3 p-3.5 text-left hover:bg-zinc-800/40"
       >
         <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-800">
           {t.logo && (
@@ -281,29 +185,22 @@ function RivalRow({
               {allW}-{allL}
             </div>
           </div>
-          <Chevron open={active} />
+          <Chevron open={expanded} />
         </div>
       </button>
 
-      {/* Expanded detail. Height snaps instantly (so the scroll-compensation
-          measures the final size); only the content opacity fades. */}
-      <div
-        className={`grid transition-opacity duration-200 ${
-          active ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
-        }`}
-      >
-        <div className="min-h-0 overflow-hidden">
-          <div className="px-3.5 pb-4">
-            <TeamStatsBody t={t} />
-            <Link
-              href={`teams/${t.rosterId}`}
-              className="mt-3 block rounded-lg border border-zinc-800 bg-zinc-950/40 py-2 text-center text-sm font-medium text-emerald-400 hover:border-emerald-800 hover:text-emerald-300"
-            >
-              View full roster →
-            </Link>
-          </div>
+      {/* Expanded detail */}
+      {expanded && (
+        <div className="px-3.5 pb-4">
+          <TeamStatsBody t={t} />
+          <Link
+            href={`teams/${t.rosterId}`}
+            className="mt-3 block rounded-lg border border-zinc-800 bg-zinc-950/40 py-2 text-center text-sm font-medium text-emerald-400 hover:border-emerald-800 hover:text-emerald-300"
+          >
+            View full roster →
+          </Link>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -319,7 +216,7 @@ function Chevron({ open }: { open: boolean }) {
       strokeWidth="2.5"
       strokeLinecap="round"
       strokeLinejoin="round"
-      className={`shrink-0 text-zinc-500 transition-transform duration-300 ${
+      className={`shrink-0 text-zinc-500 transition-transform ${
         open ? "rotate-180" : ""
       }`}
       aria-hidden="true"
