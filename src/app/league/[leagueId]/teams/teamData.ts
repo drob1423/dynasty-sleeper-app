@@ -21,6 +21,7 @@ import {
 
 export type TeamCard = {
   rosterId: number;
+  ownerId: string | null; // Sleeper user id of the current owner
   teamName: string;
   handle: string;
   logo: string | null;
@@ -211,6 +212,7 @@ export async function loadTeamCards(
     void players; // player map reserved for future roster-value stats
     return {
       rosterId: r.roster_id,
+      ownerId: r.owner_id ?? null,
       teamName: u?.team_name || u?.display_name || "Unknown",
       handle: u?.display_name || "unknown",
       logo: u?.teamAvatar ?? null,

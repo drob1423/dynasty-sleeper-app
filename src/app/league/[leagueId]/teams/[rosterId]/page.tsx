@@ -5,7 +5,8 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getRoomStrength, type PositionRoom } from "@/lib/roomStrength";
 import { loadTeamCards, type TeamCard } from "../teamData";
-import { TeamIdentity, TeamStatsBody, ordinal } from "../TeamScoreCard";
+import { TeamIdentity, ordinal } from "../TeamScoreCard";
+import { OverviewTab } from "../OverviewTab";
 import { RosterView } from "../RosterView";
 import { computeTradeProfiles } from "../tradeProfile";
 
@@ -18,6 +19,7 @@ export default function TeamDetail() {
 
   const [tab, setTab] = useState<Tab>("overview");
   const [card, setCard] = useState<TeamCard | null>(null);
+  const [meRosterId, setMeRosterId] = useState<number | null>(null);
   const [rooms, setRooms] = useState<PositionRoom[]>([]);
 
   useEffect(() => {
@@ -29,6 +31,7 @@ export default function TeamDetail() {
       ]);
       if (!alive) return;
       setCard(cards.find((c) => c.rosterId === rosterId) ?? null);
+      setMeRosterId(cards.find((c) => c.isMe)?.rosterId ?? null);
       setRooms(roomRes.rooms);
     }
     load();
@@ -82,7 +85,7 @@ export default function TeamDetail() {
       <div className="mt-5">
         {tab === "overview" &&
           (card ? (
-            <TeamStatsBody t={card} />
+            <OverviewTab leagueId={leagueId} team={card} meRosterId={meRosterId} />
           ) : (
             <p className="py-8 text-center text-sm text-zinc-500">Loading…</p>
           ))}
