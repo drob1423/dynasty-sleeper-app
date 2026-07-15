@@ -141,6 +141,14 @@ export function TeamStatsBody({
       : t.bestFinish === 3
       ? "text-amber-600"
       : undefined;
+  const finishMedal =
+    t.bestFinish === 1
+      ? " 🥇"
+      : t.bestFinish === 2
+      ? " 🥈"
+      : t.bestFinish === 3
+      ? " 🥉"
+      : "";
 
   return (
     <>
@@ -239,7 +247,7 @@ export function TeamStatsBody({
             />
             <BigStat
               label="Best Finish"
-              value={t.bestFinish ? ordinal(t.bestFinish) : "—"}
+              value={t.bestFinish ? `${ordinal(t.bestFinish)}${finishMedal}` : "—"}
               color={finishColor}
               sub={t.bestFinishSeason ?? undefined}
             />
