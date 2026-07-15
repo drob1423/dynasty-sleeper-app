@@ -56,32 +56,36 @@ function profileForTeam(
     if (!team) continue;
 
     const label = shortPos(room.position);
+    const S = room.startersN;
     const ranks = team.players.map((p) => p.posRank).sort((a, b) => a - b);
-    const inBand = (k: number) => {
-      const lo = (k - 1) * teamCount + 1;
-      const hi = k * teamCount;
-      return ranks.some((r) => r >= lo && r <= hi);
-    };
-
-    // Empty starter tiers are the real needs.
-    let allStartersFilled = true;
-    for (let k = 1; k <= room.startersN; k++) {
-      if (!inBand(k)) {
-        starterNeeds.push({ pos: room.position, tier: k, label: `${label}${k}` });
-        allStartersFilled = false;
-      }
+    // A player's tier band. A player can start any slot at or below their band
+    // (a WR1 can fill the WR2 slot), so we assign greedily: players best-first,
+    // each takes the lowest free slot they qualify for. Leftover slots = needs.
+    const bands = ranks.map((r) => Math.ceil(r / teamCount));
+    const openSlots = Array.from({ length: S }, (_, i) => i + 1);
+    const unusedBands: number[] = [];
+    for (const b of bands) {
+      const i = openSlots.findIndex((slot) => slot >= b);
+      if (i >= 0) openSlots.splice(i, 1);
+      else unusedBands.push(b);
+    }
+    for (const k of openSlots) {
+      starterNeeds.push({ pos: room.position, tier: k, label: `${label}${k}` });
     }
 
-    // If the starters are all there, note the next band as a depth candidate.
-    if (allStartersFilled) {
-      const k = room.startersN + 1;
-      if (!inBand(k)) {
-        const hi = room.startersN * teamCount;
-        // How far their best deeper player sits below the band (bigger = steeper
-        // drop-off = a more real depth need). No such player = the steepest.
+    // Starters covered — is there startable depth (a spare of band ≤ S+1)?
+    if (openSlots.length === 0) {
+      const hasDepth = unusedBands.some((b) => b <= S + 1);
+      if (!hasDepth) {
+        const hi = S * teamCount;
         const nextBeyond = ranks.find((r) => r > hi);
         const cliff = nextBeyond ? nextBeyond - hi : Number.MAX_SAFE_INTEGER;
-        depthGaps.push({ pos: room.position, tier: k, label: `${label}${k}`, cliff });
+        depthGaps.push({
+          pos: room.position,
+          tier: S + 1,
+          label: `${label}${S + 1}`,
+          cliff,
+        });
       }
     }
 
