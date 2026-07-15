@@ -49,7 +49,7 @@ export function TeamScoreCard({
 // The identity header: avatar, handle, badges, and a subtitle line.
 export function TeamIdentity({ t }: { t: TeamCard }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2.5">
+    <div className="flex items-center gap-3">
       <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-800">
         {t.logo && (
           <img
@@ -92,21 +92,7 @@ export function TeamIdentity({ t }: { t: TeamCard }) {
           )}
         </div>
       </div>
-      {/* Activity pills — trades, moves, FAAB */}
-      <div className="flex shrink-0 items-center gap-1.5">
-        <ActivityPill label="Trades" value={`${t.trades}`} />
-        <ActivityPill label="Moves" value={`${t.moves}`} />
-        <ActivityPill label="FAAB" value={t.faab != null ? `$${t.faab}` : "—"} />
-      </div>
     </div>
-  );
-}
-
-function ActivityPill({ label, value }: { label: string; value: string }) {
-  return (
-    <span className="rounded-full bg-zinc-800/80 px-2.5 py-1 text-[11px] text-zinc-400">
-      {label} <span className="font-semibold text-zinc-100">{value}</span>
-    </span>
   );
 }
 
@@ -233,6 +219,22 @@ export function TeamStatsBody({
 
       {/* Your head-to-head vs this team (hidden on your own card) */}
       <H2HStrip rec={t.h2h} />
+
+      {/* Activity footer */}
+      <div className="mt-4 flex justify-between border-t border-zinc-800/60 pt-3 text-xs text-zinc-500">
+        <span>
+          Trades <span className="font-semibold text-zinc-300">{t.trades}</span>
+        </span>
+        <span>
+          Moves <span className="font-semibold text-zinc-300">{t.moves}</span>
+        </span>
+        <span>
+          FAAB{" "}
+          <span className="font-semibold text-zinc-300">
+            {t.faab != null ? `$${t.faab}` : "—"}
+          </span>
+        </span>
+      </div>
     </>
   );
 }
