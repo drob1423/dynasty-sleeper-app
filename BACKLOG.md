@@ -33,6 +33,26 @@ Turn each manager's own valuations into a league-wide market signal.
   public, how/when they can be edited, and whether to surface an aggregate
   "market value" per player across all managers' allocations.
 
+## Power Rankings — weekly & all-time algorithms
+
+Two ranking engines that go beyond raw win/loss standings.
+
+- **Weekly power rankings** — a composite score updated each week. Candidate
+  inputs:
+  - past results (recent form, not just record)
+  - roster performance (how the roster is actually producing)
+  - start/sit performance (lineup decisions — points left on the bench vs.
+    optimal)
+  - age (dynasty trajectory / window)
+  - strength of schedule (who they've played, who's next)
+  - impactful injuries (weight down teams missing key startable players)
+- **All-time power rankings** — a franchise-strength ranking across the league's
+  full history (championships, sustained finishes, head-to-head, longevity).
+- Open questions: how to weight each factor, whether the weekly model is
+  predictive (projected strength) or descriptive (earned this week), and how much
+  the "impactful injuries" input leans on the taxi/IR + positional-strength work
+  already in place.
+
 ## Known deferred items
 
 - **D/ST + K in the positional needs/strengths engine.** `roomStrength`
