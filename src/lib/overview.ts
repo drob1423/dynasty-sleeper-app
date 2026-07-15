@@ -36,6 +36,10 @@ export type TopPlayer = {
   points: number;
 };
 
+// A player in a full lineup — starters carry their slot label, bench don't.
+export type LineupPlayer = TopPlayer & { slot: string | null };
+export type Lineup = { starters: LineupPlayer[]; bench: LineupPlayer[] };
+
 // ---------------------------------------------------------------------------
 // 1. H2H vs the whole league
 // ---------------------------------------------------------------------------
@@ -78,13 +82,15 @@ export async function getRivalH2HGrid(
       };
     })
     .sort((a, b) => {
-      // Most-played first, then by win pct.
+      // Highest win pct first; teams you've never faced sink to the bottom,
+      // ties broken by games played.
       const ga = a.rec.regW + a.rec.regL + a.rec.regT;
       const gb = b.rec.regW + b.rec.regL + b.rec.regT;
-      if (gb !== ga) return gb - ga;
+      if ((ga === 0) !== (gb === 0)) return ga === 0 ? 1 : -1;
       const pa = ga ? a.rec.regW / ga : 0;
       const pb = gb ? b.rec.regW / gb : 0;
-      return pb - pa;
+      if (pb !== pa) return pb - pa;
+      return gb - ga;
     });
 }
 
@@ -210,6 +216,8 @@ export type H2HGame = {
   theirRecord: string;
   myTop: TopPlayer[];
   theirTop: TopPlayer[];
+  myLineup: Lineup; // full starters + bench for this game
+  theirLineup: Lineup;
 };
 
 type RawEntry = {
@@ -218,34 +226,65 @@ type RawEntry = {
   points: number | null;
   starters?: string[];
   starters_points?: number[];
+  players?: string[];
   players_points?: Record<string, number>;
 };
 
-function topStarters(
+const BENCH_SLOTS = new Set(["BN", "IR", "TAXI"]);
+
+// Tidy a Sleeper roster-slot code into a short lineup label.
+function prettySlot(s: string): string {
+  switch (s) {
+    case "SUPER_FLEX": return "SFLX";
+    case "WRRB_FLEX":
+    case "REC_FLEX":
+    case "WRRB_WRT":
+    case "FLEX": return "FLEX";
+    case "IDP_FLEX": return "IDP";
+    default: return s;
+  }
+}
+
+// Build a full lineup (ordered starters with slot labels + bench by points)
+// from one team's raw matchup entry.
+function buildLineup(
   m: RawEntry | undefined,
   players: Record<string, PlayerInfo>,
-  n = 3
-): TopPlayer[] {
-  if (!m) return [];
-  const starters = Array.isArray(m.starters) ? m.starters : [];
+  rosterPositions: string[]
+): Lineup {
+  if (!m) return { starters: [], bench: [] };
+  const starterIds = Array.isArray(m.starters) ? m.starters : [];
   const sp = Array.isArray(m.starters_points) ? m.starters_points : null;
-  return starters
-    .map((pid, i) => ({
-      pid,
-      pts: sp ? sp[i] ?? 0 : m.players_points?.[pid] ?? 0,
-    }))
+  const pp = m.players_points ?? {};
+  const slots = rosterPositions.filter((s) => !BENCH_SLOTS.has(s));
+
+  const line = (pid: string, pts: number, slot: string | null): LineupPlayer => {
+    const p = players[pid];
+    return {
+      name: p?.name ?? pid,
+      pos: p?.position ?? null,
+      team: p?.team ?? null,
+      points: pts,
+      slot,
+    };
+  };
+
+  const starters = starterIds
+    .map((pid, i) => ({ pid, pts: sp ? sp[i] ?? 0 : pp[pid] ?? 0, slot: prettySlot(slots[i] ?? "") }))
     .filter((x) => x.pid && x.pid !== "0")
-    .sort((a, b) => b.pts - a.pts)
-    .slice(0, n)
-    .map((x) => {
-      const p = players[x.pid];
-      return {
-        name: p?.name ?? x.pid,
-        pos: p?.position ?? null,
-        team: p?.team ?? null,
-        points: x.pts,
-      };
-    });
+    .map((x) => line(x.pid, x.pts, x.slot));
+
+  const startSet = new Set(starterIds);
+  const bench = (Array.isArray(m.players) ? m.players : [])
+    .filter((pid) => pid && pid !== "0" && !startSet.has(pid))
+    .map((pid) => line(pid, pp[pid] ?? 0, null))
+    .sort((a, b) => b.points - a.points);
+
+  return { starters, bench };
+}
+
+function topStarters(lineup: Lineup, n = 3): TopPlayer[] {
+  return [...lineup.starters].sort((a, b) => b.points - a.points).slice(0, n);
 }
 
 const fmtRec = (w: number, l: number, t: number) =>
@@ -300,6 +339,8 @@ async function seasonMatchupLog(
       meEntry.points != null &&
       themEntry.points != null
     ) {
+      const myLineup = buildLineup(meEntry, players, season.rosterPositions);
+      const theirLineup = buildLineup(themEntry, players, season.rosterPositions);
       games.push({
         season: season.season,
         week,
@@ -311,8 +352,10 @@ async function seasonMatchupLog(
           meEntry.points > themEntry.points ? "W" : meEntry.points < themEntry.points ? "L" : "T",
         myRecord: fmtRec(mw, ml, mt),
         theirRecord: fmtRec(tw, tl, tt),
-        myTop: topStarters(meEntry, players),
-        theirTop: topStarters(themEntry, players),
+        myTop: topStarters(myLineup),
+        theirTop: topStarters(theirLineup),
+        myLineup,
+        theirLineup,
       });
     }
   });
@@ -340,6 +383,8 @@ async function seasonMatchupLog(
       const meEntry = ms.find((x) => x.roster_id === mine);
       const themEntry = ms.find((x) => x.roster_id === theirs);
       if (meEntry?.points == null || themEntry?.points == null) continue;
+      const myLineup = buildLineup(meEntry, players, season.rosterPositions);
+      const theirLineup = buildLineup(themEntry, players, season.rosterPositions);
       games.push({
         season: season.season,
         week,
@@ -351,8 +396,10 @@ async function seasonMatchupLog(
           meEntry.points > themEntry.points ? "W" : meEntry.points < themEntry.points ? "L" : "T",
         myRecord: fmtRec(mw, ml, mt), // final regular-season record entering the playoffs
         theirRecord: fmtRec(tw, tl, tt),
-        myTop: topStarters(meEntry, players),
-        theirTop: topStarters(themEntry, players),
+        myTop: topStarters(myLineup),
+        theirTop: topStarters(theirLineup),
+        myLineup,
+        theirLineup,
       });
     }
   }

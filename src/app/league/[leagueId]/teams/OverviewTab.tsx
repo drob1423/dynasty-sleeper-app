@@ -12,6 +12,8 @@ import {
   type TxItem,
   type H2HGame,
   type TopPlayer,
+  type Lineup,
+  type LineupPlayer,
 } from "@/lib/overview";
 
 // The team detail "Overview" tab: the stat hero, then this team's H2H vs the
@@ -107,17 +109,26 @@ function RivalGrid({ handle, grid }: { handle: string; grid: RivalH2H[] | null }
                 : r.rec.regL > r.rec.regW
                 ? "text-red-400"
                 : "text-zinc-300";
+            const pf = r.rec.myPtsFor;
+            const pa = r.rec.oppPtsFor;
             return (
               <div key={r.rosterId} className="flex items-center gap-3 px-3.5 py-2">
                 <Avatar logo={r.logo} size={7} />
-                <span className="min-w-0 flex-1 truncate text-sm text-zinc-200">
-                  {r.handle}
-                </span>
-                {r.rec.poW + r.rec.poL > 0 && (
-                  <span className="shrink-0 rounded bg-amber-950/40 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
-                    PO {r.rec.poW}-{r.rec.poL}
-                  </span>
-                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="truncate text-sm text-zinc-200">{r.handle}</span>
+                    {r.rec.poW + r.rec.poL > 0 && (
+                      <span className="shrink-0 rounded bg-amber-950/40 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
+                        PO {r.rec.poW}-{r.rec.poL}
+                      </span>
+                    )}
+                  </div>
+                  {g > 0 && (
+                    <div className="text-[11px] tabular-nums text-zinc-600">
+                      {Math.round(pf).toLocaleString()}–{Math.round(pa).toLocaleString()} pts
+                    </div>
+                  )}
+                </div>
                 <span className={`shrink-0 text-sm font-semibold tabular-nums ${tone}`}>
                   {g === 0 ? "—" : `${r.rec.regW}-${r.rec.regL}${r.rec.regT ? `-${r.rec.regT}` : ""}`}
                 </span>
@@ -175,9 +186,7 @@ function TxRow({ t }: { t: TxItem }) {
             </span>
           ) : null}
         </span>
-        <span className="shrink-0 text-[11px] text-zinc-600">
-          {t.season} · {relTime(t.ts)}
-        </span>
+        <span className="shrink-0 text-[11px] text-zinc-600">{fmtDate(t.ts)}</span>
       </div>
       <div className="space-y-1">
         {t.adds.map((p, i) => (
@@ -256,16 +265,28 @@ function LogSummary({ log }: { log: H2HGame[] }) {
         <span className="ml-2 text-xs text-zinc-500">{n} meeting{n === 1 ? "" : "s"}</span>
       </div>
       <div className="text-right text-xs text-zinc-500">
-        avg{" "}
-        <span className="font-semibold text-zinc-300">{(myPts / n).toFixed(1)}</span>
-        {" – "}
-        <span className="font-semibold text-zinc-300">{(theirPts / n).toFixed(1)}</span>
+        <div>
+          total{" "}
+          <span className="font-semibold text-zinc-300 tabular-nums">
+            {Math.round(myPts).toLocaleString()}
+          </span>
+          {" – "}
+          <span className="font-semibold text-zinc-300 tabular-nums">
+            {Math.round(theirPts).toLocaleString()}
+          </span>
+        </div>
+        <div className="text-[11px] text-zinc-600">
+          avg <span className="tabular-nums">{(myPts / n).toFixed(1)}</span>
+          {" – "}
+          <span className="tabular-nums">{(theirPts / n).toFixed(1)}</span>
+        </div>
       </div>
     </div>
   );
 }
 
 function GameCard({ g }: { g: H2HGame }) {
+  const [open, setOpen] = useState(false);
   const win = g.result === "W";
   const tie = g.result === "T";
   const barTone = win
@@ -275,39 +296,58 @@ function GameCard({ g }: { g: H2HGame }) {
     : "border-l-red-500";
 
   return (
-    <div className={`rounded-xl border border-zinc-800 border-l-4 bg-zinc-900 ${barTone}`}>
-      <div className="flex items-center justify-between gap-2 px-3.5 pt-2.5">
-        <span className="text-[11px] text-zinc-500">
-          {g.season} · {g.isPlayoff ? g.round : `Week ${g.week}`}
-        </span>
-        <span
-          className={`text-[11px] font-bold uppercase ${
-            win ? "text-emerald-400" : tie ? "text-zinc-400" : "text-red-400"
-          }`}
-        >
-          {win ? "Win" : tie ? "Tie" : "Loss"}
-        </span>
-      </div>
+    <div className={`overflow-hidden rounded-xl border border-zinc-800 border-l-4 bg-zinc-900 ${barTone}`}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="block w-full text-left transition-colors hover:bg-zinc-800/40"
+      >
+        <div className="flex items-center justify-between gap-2 px-3.5 pt-2.5">
+          <span className="text-[11px] text-zinc-500">
+            {g.season} · {g.isPlayoff ? g.round : `Week ${g.week}`}
+          </span>
+          <span
+            className={`text-[11px] font-bold uppercase ${
+              win ? "text-emerald-400" : tie ? "text-zinc-400" : "text-red-400"
+            }`}
+          >
+            {win ? "Win" : tie ? "Tie" : "Loss"}
+          </span>
+        </div>
 
-      {/* Score line */}
-      <div className="flex items-baseline gap-2 px-3.5 pb-2 pt-1">
-        <span className={`text-xl font-bold tabular-nums ${win ? "text-white" : "text-zinc-400"}`}>
-          {g.myScore.toFixed(1)}
-        </span>
-        <span className="text-xs text-zinc-600">–</span>
-        <span className={`text-xl font-bold tabular-nums ${!win && !tie ? "text-white" : "text-zinc-400"}`}>
-          {g.theirScore.toFixed(1)}
-        </span>
-        <span className="ml-auto text-[11px] text-zinc-600">
-          records then: {g.myRecord} / {g.theirRecord}
-        </span>
-      </div>
+        {/* Score line */}
+        <div className="flex items-baseline gap-2 px-3.5 pb-2 pt-1">
+          <span className={`text-xl font-bold tabular-nums ${win ? "text-white" : "text-zinc-400"}`}>
+            {g.myScore.toFixed(1)}
+          </span>
+          <span className="text-xs text-zinc-600">–</span>
+          <span className={`text-xl font-bold tabular-nums ${!win && !tie ? "text-white" : "text-zinc-400"}`}>
+            {g.theirScore.toFixed(1)}
+          </span>
+          <span className="ml-auto text-[11px] text-zinc-600">
+            records then: {g.myRecord} / {g.theirRecord}
+          </span>
+        </div>
+      </button>
 
-      {/* Top scorers, side by side */}
-      <div className="grid grid-cols-2 gap-px border-t border-zinc-800 bg-zinc-800 text-xs">
-        <TopCol label="You" players={g.myTop} />
-        <TopCol label="Them" players={g.theirTop} />
-      </div>
+      {/* Collapsed: top scorers. Expanded: full lineups + bench. */}
+      {open ? (
+        <div className="grid grid-cols-2 gap-px border-t border-zinc-800 bg-zinc-800 text-xs">
+          <LineupCol label="You" total={g.myScore} lineup={g.myLineup} />
+          <LineupCol label="Them" total={g.theirScore} lineup={g.theirLineup} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-px border-t border-zinc-800 bg-zinc-800 text-xs">
+          <TopCol label="You" players={g.myTop} />
+          <TopCol label="Them" players={g.theirTop} />
+        </div>
+      )}
+
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-center gap-1 border-t border-zinc-800 py-1.5 text-[11px] font-medium text-zinc-500 transition-colors hover:text-zinc-300"
+      >
+        {open ? "Hide lineups ▲" : "Full lineup & bench ▼"}
+      </button>
     </div>
   );
 }
@@ -331,6 +371,62 @@ function TopCol({ label, players }: { label: string; players: TopPlayer[] }) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function LineupCol({
+  label,
+  total,
+  lineup,
+}: {
+  label: string;
+  total: number;
+  lineup: Lineup;
+}) {
+  return (
+    <div className="bg-zinc-900 px-3 py-2">
+      <div className="mb-1.5 flex items-baseline justify-between">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
+          {label}
+        </span>
+        <span className="text-[11px] font-semibold tabular-nums text-zinc-300">
+          {total.toFixed(1)}
+        </span>
+      </div>
+      <div className="space-y-0.5">
+        {lineup.starters.map((p, i) => (
+          <PlayerLine key={`s${i}`} p={p} />
+        ))}
+      </div>
+      {lineup.bench.length > 0 && (
+        <>
+          <div className="mb-0.5 mt-2 text-[9px] font-semibold uppercase tracking-wide text-zinc-600">
+            Bench
+          </div>
+          <div className="space-y-0.5 opacity-70">
+            {lineup.bench.map((p, i) => (
+              <PlayerLine key={`b${i}`} p={p} bench />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function PlayerLine({ p, bench }: { p: LineupPlayer; bench?: boolean }) {
+  return (
+    <div className="flex items-baseline gap-1.5">
+      <span
+        className={`w-8 shrink-0 text-[9px] font-semibold uppercase ${
+          bench ? "text-zinc-700" : "text-emerald-600/80"
+        }`}
+      >
+        {bench ? p.pos ?? "" : p.slot ?? ""}
+      </span>
+      <span className="min-w-0 flex-1 truncate text-zinc-300">{p.name}</span>
+      <span className="shrink-0 tabular-nums text-zinc-500">{p.points.toFixed(1)}</span>
     </div>
   );
 }
@@ -371,13 +467,12 @@ function Empty({ children }: { children: React.ReactNode }) {
   );
 }
 
-function relTime(ms: number): string {
+// Exact transaction date, e.g. "Jul 3, 2026".
+function fmtDate(ms: number): string {
   if (!ms) return "";
-  const diff = Date.now() - ms;
-  const day = 86400000;
-  if (diff < day) return "today";
-  if (diff < 2 * day) return "yesterday";
-  if (diff < 30 * day) return `${Math.floor(diff / day)}d ago`;
-  if (diff < 365 * day) return `${Math.floor(diff / (30 * day))}mo ago`;
-  return `${Math.floor(diff / (365 * day))}y ago`;
+  return new Date(ms).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
