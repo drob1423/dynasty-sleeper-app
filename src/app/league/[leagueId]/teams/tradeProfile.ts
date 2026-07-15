@@ -57,7 +57,11 @@ function profileForTeam(
 
     const label = shortPos(room.position);
     const S = room.startersN;
-    const ranks = team.players.map((p) => p.posRank).sort((a, b) => a - b);
+    // Only counted (startable) players fill slots — taxi/IR are display-only.
+    const ranks = team.players
+      .filter((p) => p.status === "active")
+      .map((p) => p.posRank)
+      .sort((a, b) => a - b);
 
     // Assign players to starter slots. A player can start any slot at or below
     // their tier band (a WR1 can fill the WR2 slot), so go best-first and each

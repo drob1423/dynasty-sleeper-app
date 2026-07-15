@@ -95,6 +95,27 @@ export default function TeamDetail() {
   );
 }
 
+// Small badge marking a player who's on the roster but not currently startable.
+function StatusPill({
+  tone,
+  children,
+}: {
+  tone: "ir" | "taxi";
+  children: React.ReactNode;
+}) {
+  const cls =
+    tone === "ir"
+      ? "border-red-900/70 bg-red-950/40 text-red-300"
+      : "border-sky-900/70 bg-sky-950/40 text-sky-300";
+  return (
+    <span
+      className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${cls}`}
+    >
+      {children}
+    </span>
+  );
+}
+
 // Per-position breakdown: shows every ranked player, which starter slots they
 // fill, and the resulting needs/strengths — so the positional read is auditable.
 function PositionsBreakdown({
@@ -119,7 +140,9 @@ function PositionsBreakdown({
     <div className="space-y-3">
       <p className="text-xs text-zinc-500">
         Each position ranks every player league-wide by points scored. A slot is
-        a need when no rostered player is good enough to fill it.
+        a need when no rostered player is good enough to fill it. Taxi and IR
+        players are shown for context (with their would-be rank) but don&rsquo;t
+        count toward ranks or needs until they&rsquo;re active.
       </p>
 
       {rooms.map((room) => {
@@ -154,31 +177,48 @@ function PositionsBreakdown({
                   No ranked players (needs 4+ games to qualify).
                 </p>
               ) : (
-                team.players.map((p) => (
-                  <div
-                    key={p.id}
-                    className="flex items-center gap-3 px-4 py-2"
-                  >
-                    <span
-                      className={`w-9 shrink-0 text-center text-xs font-semibold tabular-nums ${
-                        p.isStarter ? "text-emerald-400" : "text-zinc-500"
+                team.players.map((p) => {
+                  const inactive = p.status !== "active";
+                  return (
+                    <div
+                      key={p.id}
+                      className={`flex items-center gap-3 px-4 py-2 ${
+                        inactive ? "bg-zinc-950/40" : ""
                       }`}
                     >
-                      #{p.posRank}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-sm text-zinc-200">
-                      {p.name}
-                      <span className="ml-1.5 text-xs text-zinc-600">
-                        {p.team ?? "FA"} · {p.mean.toFixed(1)} ppg
+                      <span
+                        className={`w-9 shrink-0 text-center text-xs font-semibold tabular-nums ${
+                          inactive
+                            ? "text-zinc-600"
+                            : p.isStarter
+                            ? "text-emerald-400"
+                            : "text-zinc-500"
+                        }`}
+                      >
+                        #{p.posRank}
                       </span>
-                    </span>
-                    {p.isStarter && (
-                      <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-emerald-500/80">
-                        Starter
+                      <span
+                        className={`min-w-0 flex-1 truncate text-sm ${
+                          inactive ? "text-zinc-500" : "text-zinc-200"
+                        }`}
+                      >
+                        {p.name}
+                        <span className="ml-1.5 text-xs text-zinc-600">
+                          {p.team ?? "FA"} · {p.mean.toFixed(1)} ppg
+                        </span>
                       </span>
-                    )}
-                  </div>
-                ))
+                      {p.status === "ir" && <StatusPill tone="ir">IR</StatusPill>}
+                      {p.status === "taxi" && (
+                        <StatusPill tone="taxi">Taxi</StatusPill>
+                      )}
+                      {p.isStarter && (
+                        <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-emerald-500/80">
+                          Starter
+                        </span>
+                      )}
+                    </div>
+                  );
+                })
               )}
             </div>
 

@@ -88,7 +88,9 @@ export function RosterView({
         for (const team of room.teams) {
           for (const p of team.players) {
             rank.set(p.id, { rank: p.posRank, mean: p.mean });
-            size = Math.max(size, p.posRank);
+            // Pool size counts startable players only — taxi/IR carry a
+            // would-be rank that shouldn't stretch the "of N" denominator.
+            if (p.status === "active") size = Math.max(size, p.posRank);
           }
         }
         pool[room.position] = size;
