@@ -333,7 +333,7 @@ function AllTimeTable({ rows }: { rows: AllTimeTableRow[] }) {
       <table className="w-full min-w-[360px] text-sm">
         <thead>
           <tr className="border-b border-zinc-800 text-left text-xs uppercase tracking-wide text-zinc-500">
-            <th className="px-3 py-3 font-medium">Team</th>
+            <th className="px-2 py-3 font-medium">Team</th>
             <th className="px-2 py-3 text-center font-medium">Szn</th>
             <th className={`px-2 py-3 text-center font-medium ${groupEdge}`}>
               Record
@@ -349,7 +349,7 @@ function AllTimeTable({ rows }: { rows: AllTimeTableRow[] }) {
             const paDiff = row.pa - minPA;
             return (
               <tr key={row.key} className="border-b border-zinc-800/60 last:border-0">
-                <td className="px-3 py-3">
+                <td className="px-2 py-3">
                   <div className="flex items-baseline gap-2">
                     <span className="w-5 shrink-0 text-xs font-semibold tabular-nums text-zinc-500">
                       {i + 1}
@@ -385,11 +385,11 @@ function AllTimeTable({ rows }: { rows: AllTimeTableRow[] }) {
                   </div>
                 </td>
                 <td className="px-2 py-3 text-right align-top text-zinc-300">
-                  <div>
-                    {row.pf.toFixed(1)}
-                    <sup className="ml-0.5 text-[9px] font-normal text-zinc-500">
+                  <div className="flex items-baseline justify-end gap-1">
+                    <span className="text-[10px] font-semibold text-zinc-500">
                       {pfRank.get(row.key)}
-                    </sup>
+                    </span>
+                    <span>{row.pf.toFixed(1)}</span>
                   </div>
                   <div
                     className={`mt-0.5 text-xs ${
@@ -401,11 +401,11 @@ function AllTimeTable({ rows }: { rows: AllTimeTableRow[] }) {
                   </div>
                 </td>
                 <td className="px-2 py-3 text-right align-top text-zinc-400">
-                  <div>
-                    {row.pa.toFixed(1)}
-                    <sup className="ml-0.5 text-[9px] font-normal text-zinc-500">
+                  <div className="flex items-baseline justify-end gap-1">
+                    <span className="text-[10px] font-semibold text-zinc-500">
                       {paRank.get(row.key)}
-                    </sup>
+                    </span>
+                    <span>{row.pa.toFixed(1)}</span>
                   </div>
                   <div
                     className="mt-0.5 text-xs text-zinc-500"
