@@ -5,7 +5,9 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { loadTeamCards, type TeamCard } from "./teamData";
-import { TeamStatsBody, medalEmoji, ordinal } from "./TeamScoreCard";
+import { ordinal } from "./TeamScoreCard";
+import { getRoomStrength } from "@/lib/roomStrength";
+import { computeTradeProfiles, shortPos, type TradeProfile } from "./tradeProfile";
 
 export default function RivalsTab() {
   const params = useParams();
@@ -15,13 +17,13 @@ export default function RivalsTab() {
   const [rivals, setRivals] = useState<TeamCard[]>([]);
   const [lastSeason, setLastSeason] = useState<string | null>(null);
   const [members, setMembers] = useState({ on: 0, total: 0 });
-  // rosterIds whose full scorecard is expanded (multiple may be open).
-  const [open, setOpen] = useState<Set<number>>(new Set());
+  const [profiles, setProfiles] = useState<Map<number, TradeProfile>>(new Map());
 
   useEffect(() => {
+    let alive = true;
     async function load() {
       const { cards, lastSeason } = await loadTeamCards(leagueId);
-      // Rivals = everyone but you, sorted by last-season finish.
+      if (!alive) return;
       const others = cards
         .filter((c) => !c.isMe)
         .sort((a, b) => (a.lastRank ?? 99) - (b.lastRank ?? 99));
@@ -32,18 +34,16 @@ export default function RivalsTab() {
       });
       setLastSeason(lastSeason);
       setLoading(false);
+
+      // Positional needs/strengths ride on the (cached) room-strength data.
+      const { rooms } = await getRoomStrength(leagueId);
+      if (alive) setProfiles(computeTradeProfiles(rooms));
     }
     load();
+    return () => {
+      alive = false;
+    };
   }, [leagueId]);
-
-  function toggle(rosterId: number) {
-    setOpen((prev) => {
-      const next = new Set(prev);
-      if (next.has(rosterId)) next.delete(rosterId);
-      else next.add(rosterId);
-      return next;
-    });
-  }
 
   if (loading) {
     return <p className="py-10 text-center text-zinc-400">Loading rivals…</p>;
@@ -63,14 +63,12 @@ export default function RivalsTab() {
         </p>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-3">
         {rivals.map((t) => (
-          <RivalRow
+          <RivalCard
             key={t.rosterId}
             t={t}
-            leagueId={leagueId}
-            expanded={open.has(t.rosterId)}
-            onToggle={() => toggle(t.rosterId)}
+            profile={profiles.get(t.rosterId)}
           />
         ))}
       </div>
@@ -78,29 +76,18 @@ export default function RivalsTab() {
   );
 }
 
-// A compact, scannable row that expands to the full scorecard on tap.
-function RivalRow({
+// A roomy, at-a-glance scouting card — quick stats, positional needs &
+// strengths (for trades), and the trophy case. Tapping opens the detail view.
+function RivalCard({
   t,
-  leagueId,
-  expanded,
-  onToggle,
+  profile,
 }: {
   t: TeamCard;
-  leagueId: string;
-  expanded: boolean;
-  onToggle: () => void;
+  profile?: TradeProfile;
 }) {
   const allW = t.dynastyW + t.playoffW;
   const allL = t.dynastyL + t.playoffL;
 
-  const streakColor =
-    t.streak?.type === "W"
-      ? "text-emerald-400"
-      : t.streak?.type === "L"
-      ? "text-red-400"
-      : "text-zinc-400";
-
-  // The logged-in user's regular-season record vs this team, if they've met.
   const h2h = t.h2h;
   const h2hGames = h2h ? h2h.regW + h2h.regL + h2h.regT : 0;
   const h2hColor =
@@ -108,120 +95,208 @@ function RivalRow({
       ? "text-emerald-400"
       : h2h && h2h.regL > h2h.regW
       ? "text-red-400"
-      : "text-zinc-400";
+      : "text-white";
+  const h2hSub =
+    h2hGames === 0
+      ? ""
+      : h2h!.regW > h2h!.regL
+      ? "you lead"
+      : h2h!.regL > h2h!.regW
+      ? "you trail"
+      : "even";
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
-      {/* Compact header — always visible, toggles the expansion */}
-      <button
-        onClick={onToggle}
-        aria-expanded={expanded}
-        className="flex w-full items-center gap-3 p-3.5 text-left hover:bg-zinc-800/40"
-      >
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-800">
+    <Link
+      href={`teams/${t.rosterId}`}
+      className="block rounded-2xl border border-zinc-800 bg-zinc-900 p-4 transition-colors hover:border-emerald-800/60 hover:bg-zinc-800/40"
+    >
+      {/* Identity */}
+      <div className="flex items-center gap-3">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-800">
           {t.logo && (
             <img
               src={t.logo}
               alt=""
-              className="h-10 w-10 object-cover"
+              className="h-12 w-12 object-cover"
               onError={(e) => {
                 e.currentTarget.style.display = "none";
               }}
             />
           )}
         </div>
-
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <span className="truncate text-sm font-semibold text-white">
+          <div className="flex items-center gap-2">
+            <span className="truncate text-[17px] font-bold text-white">
               {t.handle}
             </span>
-            {t.place && <span className="shrink-0">{medalEmoji(t.place)}</span>}
             {t.isMember && (
-              <span
-                title="On the app"
-                className="shrink-0 rounded-full border border-emerald-800 bg-emerald-950/50 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-emerald-400"
-              >
+              <span className="shrink-0 rounded-full border border-emerald-800 bg-emerald-950/50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-400">
                 ● Member
               </span>
             )}
             {t.newOwner && (
-              <span className="shrink-0 rounded-full border border-amber-900 bg-amber-950/40 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-amber-400">
+              <span className="shrink-0 rounded-full border border-amber-900 bg-amber-950/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-400">
                 New
               </span>
             )}
           </div>
-          <div className="mt-0.5 truncate text-xs text-zinc-500">
-            {t.lastRank && t.lastSeason
-              ? `${t.lastSeason} ${ordinal(t.lastRank)}`
-              : t.teamName}
-            {t.streak && (
-              <>
-                {" · "}
-                <span className={streakColor}>
-                  {t.streak.type}
-                  {t.streak.count}
-                </span>
-              </>
-            )}
-            {h2hGames > 0 && (
-              <>
-                {" · you "}
-                <span className={h2hColor}>
-                  {h2h!.regW}-{h2h!.regL}
-                </span>
-              </>
-            )}
-          </div>
+          <div className="truncate text-[13px] text-zinc-500">{t.teamName}</div>
         </div>
+      </div>
 
-        {/* All-time record + chevron */}
-        <div className="flex shrink-0 items-center gap-2 text-right">
-          <div>
-            <div className="text-[9px] uppercase tracking-wide text-zinc-600">
-              All-Time
-            </div>
-            <div className="text-sm font-bold tabular-nums text-white">
-              {allW}-{allL}
-            </div>
-          </div>
-          <Chevron open={expanded} />
-        </div>
-      </button>
+      {/* Quick-hitter stats */}
+      <div className="mt-3.5 grid grid-cols-3 gap-2">
+        <StatTile label="All-Time" value={`${allW}-${allL}`} sub={winPct(allW, allL)} />
+        <StatTile label="This Yr" value={`${t.currentW}-${t.currentL}`} />
+        <StatTile
+          label="Vs You"
+          value={h2hGames ? `${h2h!.regW}-${h2h!.regL}` : "—"}
+          valueClass={h2hColor}
+          sub={h2hSub}
+        />
+      </div>
 
-      {/* Expanded detail */}
-      {expanded && (
-        <div className="px-3.5 pb-4">
-          <TeamStatsBody t={t} />
-          <Link
-            href={`teams/${t.rosterId}`}
-            className="mt-3 block rounded-lg border border-zinc-800 bg-zinc-950/40 py-2 text-center text-sm font-medium text-emerald-400 hover:border-emerald-800 hover:text-emerald-300"
-          >
-            View full roster →
-          </Link>
+      {/* Positional needs & strengths — the trade-scouting read */}
+      {profile && (profile.needs.length > 0 || profile.strengths.length > 0) && (
+        <div className="mt-3.5 space-y-2">
+          <ChipRow
+            label="Needs"
+            empty="Roster looks set"
+            chips={profile.needs.map((n) => n.label)}
+            tone="need"
+          />
+          <ChipRow
+            label="Strong"
+            empty="No standout position"
+            chips={profile.strengths.map((s) => `${shortPos(s.pos)} ${ordinal(s.rank)}`)}
+            tone="strong"
+          />
         </div>
+      )}
+
+      {/* Trophy case */}
+      <div className="mt-3.5 flex items-center gap-2 border-t border-zinc-800/70 pt-3 text-[13px]">
+        <span className="text-[9px] font-semibold uppercase tracking-wide text-zinc-600">
+          Trophies
+        </span>
+        <TrophyCase rings={t.rings} silver={t.silver} bronze={t.bronze} />
+      </div>
+    </Link>
+  );
+}
+
+function StatTile({
+  label,
+  value,
+  sub,
+  valueClass,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  valueClass?: string;
+}) {
+  return (
+    <div className="rounded-xl bg-zinc-950/55 py-2.5 text-center">
+      <div className="text-[9px] font-semibold uppercase tracking-wide text-zinc-500">
+        {label}
+      </div>
+      <div className={`mt-1 text-lg font-bold leading-none ${valueClass ?? "text-white"}`}>
+        {value}
+      </div>
+      {sub && <div className="mt-1 text-[10px] text-zinc-600">{sub}</div>}
+    </div>
+  );
+}
+
+function ChipRow({
+  label,
+  chips,
+  tone,
+  empty,
+}: {
+  label: string;
+  chips: string[];
+  tone: "need" | "strong";
+  empty: string;
+}) {
+  const chipClass =
+    tone === "need"
+      ? "border-red-900/70 bg-red-950/40 text-red-300"
+      : "border-emerald-900/70 bg-emerald-950/40 text-emerald-300";
+  return (
+    <div className="flex items-start gap-2">
+      <span className="mt-1 w-12 shrink-0 text-[9px] font-semibold uppercase tracking-wide text-zinc-600">
+        {label}
+      </span>
+      {chips.length ? (
+        <div className="flex flex-wrap gap-1.5">
+          {chips.map((c) => (
+            <span
+              key={c}
+              className={`rounded-md border px-2 py-0.5 text-xs font-semibold ${chipClass}`}
+            >
+              {c}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <span className="mt-0.5 text-xs text-zinc-600">{empty}</span>
       )}
     </div>
   );
 }
 
-function Chevron({ open }: { open: boolean }) {
+function TrophyCase({
+  rings,
+  silver,
+  bronze,
+}: {
+  rings: number;
+  silver: number;
+  bronze: number;
+}) {
+  const parts: React.ReactNode[] = [];
+  if (rings > 0)
+    parts.push(
+      <span key="c">
+        🏆 <b className="font-bold text-white">{rings}×</b>{" "}
+        <span className="text-zinc-400">Champion</span>
+      </span>
+    );
+  if (silver > 0)
+    parts.push(
+      <span key="s">
+        🥈 <b className="font-bold text-white">{silver}×</b>{" "}
+        <span className="text-zinc-400">Runner-up</span>
+      </span>
+    );
+  if (bronze > 0)
+    parts.push(
+      <span key="b">
+        🥉 <b className="font-bold text-white">{bronze}×</b>{" "}
+        <span className="text-zinc-400">Third</span>
+      </span>
+    );
+
+  if (!parts.length)
+    return <span className="text-zinc-600">No hardware yet</span>;
+
   return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={`shrink-0 text-zinc-500 transition-transform ${
-        open ? "rotate-180" : ""
-      }`}
-      aria-hidden="true"
-    >
-      <path d="m6 9 6 6 6-6" />
-    </svg>
+    <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+      {parts.map((p, i) => (
+        <span key={i} className="inline-flex items-center">
+          {i > 0 && <span className="mr-1.5 text-zinc-700">·</span>}
+          {p}
+        </span>
+      ))}
+    </span>
   );
+}
+
+// Win percentage as ".643" (drops the leading zero, fantasy convention).
+function winPct(w: number, l: number): string {
+  const g = w + l;
+  if (!g) return "—";
+  return (w / g).toFixed(3).replace(/^0/, "");
 }
