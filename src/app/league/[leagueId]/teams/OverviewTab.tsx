@@ -62,7 +62,7 @@ export function OverviewTab({
 
   return (
     <div className="space-y-6">
-      <TeamStatsBody t={team} />
+      <TeamStatsBody t={team} hideH2H />
 
       {viewingOther && (
         <MatchupLog handle={team.handle} log={log} />
@@ -83,7 +83,7 @@ function Section({
 }) {
   return (
     <section>
-      <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+      <h3 className="mb-2.5 border-b border-zinc-800 pb-1.5 text-lg font-bold text-white">
         {title}
       </h3>
       {children}

@@ -117,9 +117,11 @@ function ActivityPill({ label, value }: { label: string; value: string }) {
 export function TeamStatsBody({
   t,
   extra,
+  hideH2H,
 }: {
   t: TeamCard;
   extra?: React.ReactNode;
+  hideH2H?: boolean; // Overview tab shows a fuller H2H log below, so it hides this strip
 }) {
   // Record over the last 5 regular-season games.
   const l5w = t.form.filter((r) => r === "W").length;
@@ -232,8 +234,9 @@ export function TeamStatsBody({
         {extra && <div className="shrink-0 md:w-[300px]">{extra}</div>}
       </div>
 
-      {/* Your head-to-head vs this team (hidden on your own card) */}
-      <H2HStrip rec={t.h2h} />
+      {/* Your head-to-head vs this team (hidden on your own card, and on the
+          Overview tab where a fuller game-by-game log is shown instead) */}
+      {!hideH2H && <H2HStrip rec={t.h2h} />}
     </>
   );
 }
