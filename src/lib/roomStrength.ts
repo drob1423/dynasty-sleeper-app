@@ -108,14 +108,12 @@ export async function getRoomStrength(
   const qualified = (pid: string) => (stats[pid]?.gp ?? 0) >= MIN_GAMES;
   const posOf = (pid: string) => playerMap[pid]?.position ?? "";
 
-  // Taxi-squad players can't be activated into the lineup, so they don't count
-  // toward a team's positional strength — rank on the non-taxi roster only.
-  // (IR players stay counted: they're still real roster assets for scouting,
-  // and offseason IR flags are stale — excluding them invents phantom needs.)
+  // Taxi-squad and IR players can't be started, so they don't count toward a
+  // team's live positional strength — rank on the startable roster only.
   const activeByRoster = new Map<number, string[]>(
     rosters.map((r) => {
-      const taxi = new Set(r.taxi);
-      return [r.roster_id, r.players.filter((pid) => !taxi.has(pid))];
+      const inactive = new Set([...r.taxi, ...r.reserve]);
+      return [r.roster_id, r.players.filter((pid) => !inactive.has(pid))];
     })
   );
   const active = (r: FullRoster) => activeByRoster.get(r.roster_id) ?? [];
