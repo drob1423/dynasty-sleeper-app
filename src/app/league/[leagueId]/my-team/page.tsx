@@ -6,6 +6,7 @@ import { loadTeamCards, type TeamCard } from "../teams/teamData";
 import { TeamScoreCard } from "../teams/TeamScoreCard";
 import { RosterView } from "../teams/RosterView";
 import { TeamStrengthPanel } from "./TeamStrengthPanel";
+import { MyNeedsStrengths } from "./MyNeedsStrengths";
 
 export default function MyTeamTab() {
   const params = useParams();
@@ -38,6 +39,8 @@ export default function MyTeamTab() {
   return (
     <div className="space-y-6">
       <TeamScoreCard t={mine} highlight extra={<TeamStrengthPanel leagueId={leagueId} />} />
+
+      <MyNeedsStrengths leagueId={leagueId} rosterId={mine.rosterId} />
 
       <div>
         <h3 className="mb-3 text-lg font-semibold text-white">Your Roster</h3>
