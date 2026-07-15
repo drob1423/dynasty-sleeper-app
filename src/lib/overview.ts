@@ -378,6 +378,12 @@ async function seasonMatchupLog(
     const ms: RawEntry[] = Array.isArray(reg[i]) ? reg[i] : [];
     if (!ms.length) return;
 
+    // Skip weeks that haven't been played yet. Once the schedule is out but the
+    // games haven't happened, Sleeper returns every entry at 0 points — folding
+    // those in would invent phantom 0-0 ties (and 0-0 matchups). A played week
+    // always has at least one team on the board.
+    if (!ms.some((e) => (e.points ?? 0) > 0)) return;
+
     // Advance both running records for this week.
     const rm = resultFor(ms, mine);
     if (rm === "W") mw++; else if (rm === "L") ml++; else if (rm === "T") mt++;
@@ -438,6 +444,8 @@ async function seasonMatchupLog(
       const meEntry = ms.find((x) => x.roster_id === mine);
       const themEntry = ms.find((x) => x.roster_id === theirs);
       if (meEntry?.points == null || themEntry?.points == null) continue;
+      // Skip a bracketed-but-unplayed game (both still at 0).
+      if ((meEntry.points ?? 0) === 0 && (themEntry.points ?? 0) === 0) continue;
       const myLineup = buildLineup(meEntry, players, season.rosterPositions);
       const theirLineup = buildLineup(themEntry, players, season.rosterPositions);
       games.push({
