@@ -58,14 +58,27 @@ function profileForTeam(
     const label = shortPos(room.position);
     const S = room.startersN;
     const ranks = team.players.map((p) => p.posRank).sort((a, b) => a - b);
-    // Band width. Dedicated positions use one tier per team (QB1 = 1–10). Flex
-    // draws from a much deeper pool (everyone's non-starters), so a startable
-    // flex piece can sit further down — widen its bands to 2× (FLX1 = 1–20).
-    const bandWidth = room.position === "FLEX" ? 2 * teamCount : teamCount;
+
+    // Flex is the leftover slot — filled by the best skill players that aren't
+    // already dedicated starters. Its pool is ranked by points across RB/WR/TE,
+    // so scarcity is baked in (a high-scoring TE and WR sit next to each other).
+    // The startable pool is the top (flex slots × teams); a team is short only
+    // if it has fewer of those than it has flex slots. There's no "elite flex"
+    // tier the way there is for dedicated spots, so this is a straight count.
+    if (room.position === "FLEX") {
+      const universe = S * teamCount;
+      const startable = ranks.filter((r) => r <= universe).length;
+      for (let k = startable + 1; k <= S; k++) {
+        starterNeeds.push({ pos: room.position, tier: k, label: `${label}${k}` });
+      }
+      continue;
+    }
+
+    // Dedicated positions carve the rank into one tier per team (QB1 = 1–10).
     // A player can start any slot at or below their band (a WR1 can fill the
     // WR2 slot), so we assign greedily: players best-first, each takes the
     // lowest free slot they qualify for. Leftover slots = needs.
-    const bands = ranks.map((r) => Math.ceil(r / bandWidth));
+    const bands = ranks.map((r) => Math.ceil(r / teamCount));
     const openSlots = Array.from({ length: S }, (_, i) => i + 1);
     const unusedBands: number[] = [];
     for (const b of bands) {
@@ -81,7 +94,7 @@ function profileForTeam(
     if (openSlots.length === 0) {
       const hasDepth = unusedBands.some((b) => b <= S + 1);
       if (!hasDepth) {
-        const hi = S * bandWidth;
+        const hi = S * teamCount;
         const nextBeyond = ranks.find((r) => r > hi);
         const cliff = nextBeyond ? nextBeyond - hi : Number.MAX_SAFE_INTEGER;
         depthGaps.push({
