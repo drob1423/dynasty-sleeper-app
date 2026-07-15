@@ -67,7 +67,7 @@ export function OverviewTab({
       {viewingOther && (
         <MatchupLog handle={team.handle} log={log} />
       )}
-      <RivalGrid handle={team.handle} grid={grid} />
+      <RivalGrid leagueId={leagueId} team={team} grid={grid} />
       <RecentMoves handle={team.handle} txns={txns} />
     </div>
   );
@@ -92,15 +92,47 @@ function Section({
 }
 
 // --- 1. H2H vs the league ------------------------------------------------
-function RivalGrid({ handle, grid }: { handle: string; grid: RivalH2H[] | null }) {
+// Every rival row expands into the full head-to-head game log between the
+// viewed team and that rival — same detail as "your history vs" but from the
+// viewed team's perspective.
+function RivalGrid({
+  leagueId,
+  team,
+  grid,
+}: {
+  leagueId: string;
+  team: TeamCard;
+  grid: RivalH2H[] | null;
+}) {
+  const [openId, setOpenId] = useState<number | null>(null);
+  const [logs, setLogs] = useState<Record<number, H2HGame[] | null>>({});
+
+  // Reset when navigating to a different team.
+  useEffect(() => {
+    setOpenId(null);
+    setLogs({});
+  }, [team.rosterId]);
+
+  const toggle = (rid: number) => {
+    setOpenId((cur) => (cur === rid ? null : rid));
+    setLogs((cur) => {
+      if (rid in cur) return cur; // already loading/loaded
+      getMatchupLog(leagueId, team.rosterId, rid).then((l) =>
+        setLogs((c) => ({ ...c, [rid]: l }))
+      );
+      return { ...cur, [rid]: null };
+    });
+  };
+
   return (
-    <Section title={`${handle}'s record vs the league`}>
+    <Section title={`${team.handle}'s record vs the league`}>
       {grid == null ? (
         <Loading />
       ) : (
         <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900 divide-y divide-zinc-800/60">
           {grid.map((r) => {
             const g = r.rec.regW + r.rec.regL + r.rec.regT;
+            const played = g + r.rec.poW + r.rec.poL > 0;
             const pct = g ? r.rec.regW / g : 0;
             const tone =
               g === 0
@@ -110,32 +142,69 @@ function RivalGrid({ handle, grid }: { handle: string; grid: RivalH2H[] | null }
                 : r.rec.regL > r.rec.regW
                 ? "text-red-400"
                 : "text-zinc-300";
-            const pf = r.rec.myPtsFor;
-            const pa = r.rec.oppPtsFor;
+            const isOpen = openId === r.rosterId;
+            const rowLog = logs[r.rosterId];
             return (
-              <div key={r.rosterId} className="flex items-center gap-3 px-3.5 py-2">
-                <Avatar logo={r.logo} size={7} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="truncate text-sm text-zinc-200">{r.handle}</span>
-                    {r.rec.poW + r.rec.poL > 0 && (
-                      <span className="shrink-0 rounded bg-amber-950/40 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
-                        PO {r.rec.poW}-{r.rec.poL}
-                      </span>
+              <div key={r.rosterId}>
+                <button
+                  onClick={() => played && toggle(r.rosterId)}
+                  disabled={!played}
+                  className={`flex w-full items-center gap-3 px-3.5 py-2 text-left transition-colors ${
+                    played ? "hover:bg-zinc-800/40" : "cursor-default"
+                  }`}
+                >
+                  <Avatar logo={r.logo} size={7} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="truncate text-sm text-zinc-200">{r.handle}</span>
+                      {r.rec.poW + r.rec.poL > 0 && (
+                        <span className="shrink-0 rounded bg-amber-950/40 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
+                          PO {r.rec.poW}-{r.rec.poL}
+                        </span>
+                      )}
+                    </div>
+                    {g > 0 && (
+                      <div className="text-[11px] tabular-nums text-zinc-600">
+                        {Math.round(r.rec.myPtsFor).toLocaleString()}–
+                        {Math.round(r.rec.oppPtsFor).toLocaleString()} pts
+                      </div>
                     )}
                   </div>
-                  {g > 0 && (
-                    <div className="text-[11px] tabular-nums text-zinc-600">
-                      {Math.round(pf).toLocaleString()}–{Math.round(pa).toLocaleString()} pts
-                    </div>
+                  <span className={`shrink-0 text-sm font-semibold tabular-nums ${tone}`}>
+                    {g === 0 ? "—" : `${r.rec.regW}-${r.rec.regL}${r.rec.regT ? `-${r.rec.regT}` : ""}`}
+                  </span>
+                  <span className="w-10 shrink-0 text-right text-xs tabular-nums text-zinc-500">
+                    {g === 0 ? "" : pct.toFixed(3).replace(/^0/, "")}
+                  </span>
+                  {played && (
+                    <span
+                      className={`shrink-0 text-zinc-600 transition-transform ${
+                        isOpen ? "rotate-90" : ""
+                      }`}
+                    >
+                      ›
+                    </span>
                   )}
-                </div>
-                <span className={`shrink-0 text-sm font-semibold tabular-nums ${tone}`}>
-                  {g === 0 ? "—" : `${r.rec.regW}-${r.rec.regL}${r.rec.regT ? `-${r.rec.regT}` : ""}`}
-                </span>
-                <span className="w-10 shrink-0 text-right text-xs tabular-nums text-zinc-500">
-                  {g === 0 ? "" : pct.toFixed(3).replace(/^0/, "")}
-                </span>
+                </button>
+
+                {isOpen && (
+                  <div className="border-t border-zinc-800/60 bg-zinc-950/40 px-3 py-3">
+                    {rowLog == null ? (
+                      <Loading />
+                    ) : rowLog.length === 0 ? (
+                      <Empty>
+                        No completed games yet — this rivalry only shows in the
+                        current, unfinished season.
+                      </Empty>
+                    ) : (
+                      <MatchupHistory
+                        log={rowLog}
+                        myLabel={team.handle}
+                        oppLabel={r.handle}
+                      />
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -283,16 +352,32 @@ function MatchupLog({ handle, log }: { handle: string; log: H2HGame[] | null }) 
       ) : log.length === 0 ? (
         <Empty>You&rsquo;ve never faced {handle}.</Empty>
       ) : (
-        <>
-          <LogSummary log={log} />
-          <div className="mt-2 space-y-2">
-            {log.map((g, i) => (
-              <GameCard key={i} g={g} />
-            ))}
-          </div>
-        </>
+        <MatchupHistory log={log} myLabel="You" oppLabel={handle} />
       )}
     </Section>
+  );
+}
+
+// The summary strip + per-game cards. `myLabel`/`oppLabel` name the two sides
+// (the first roster passed to getMatchupLog is "my" side).
+function MatchupHistory({
+  log,
+  myLabel,
+  oppLabel,
+}: {
+  log: H2HGame[];
+  myLabel: string;
+  oppLabel: string;
+}) {
+  return (
+    <>
+      <LogSummary log={log} />
+      <div className="mt-2 space-y-2">
+        {log.map((g, i) => (
+          <GameCard key={i} g={g} myLabel={myLabel} oppLabel={oppLabel} />
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -334,7 +419,15 @@ function LogSummary({ log }: { log: H2HGame[] }) {
   );
 }
 
-function GameCard({ g }: { g: H2HGame }) {
+function GameCard({
+  g,
+  myLabel = "You",
+  oppLabel = "Them",
+}: {
+  g: H2HGame;
+  myLabel?: string;
+  oppLabel?: string;
+}) {
   const [open, setOpen] = useState(false);
   const win = g.result === "W";
   const tie = g.result === "T";
@@ -381,13 +474,13 @@ function GameCard({ g }: { g: H2HGame }) {
       {/* Collapsed: top scorers. Expanded: full lineups + bench. */}
       {open ? (
         <div className="grid grid-cols-2 gap-px border-t border-zinc-800 bg-zinc-800 text-xs">
-          <LineupCol label="You" total={g.myScore} lineup={g.myLineup} />
-          <LineupCol label="Them" total={g.theirScore} lineup={g.theirLineup} />
+          <LineupCol label={myLabel} total={g.myScore} lineup={g.myLineup} />
+          <LineupCol label={oppLabel} total={g.theirScore} lineup={g.theirLineup} />
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-px border-t border-zinc-800 bg-zinc-800 text-xs">
-          <TopCol label="You" players={g.myTop} />
-          <TopCol label="Them" players={g.theirTop} />
+          <TopCol label={myLabel} players={g.myTop} />
+          <TopCol label={oppLabel} players={g.theirTop} />
         </div>
       )}
 
