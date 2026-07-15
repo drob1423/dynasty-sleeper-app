@@ -13,6 +13,7 @@ import {
   getLeague,
   getLeagueUsers,
   getPlayerMap,
+  type FullRoster,
   type PlayerInfo,
 } from "./sleeper";
 
@@ -107,12 +108,22 @@ export async function getRoomStrength(
   const qualified = (pid: string) => (stats[pid]?.gp ?? 0) >= MIN_GAMES;
   const posOf = (pid: string) => playerMap[pid]?.position ?? "";
 
+  // Taxi-squad players can't start until they're activated, so they don't count
+  // toward a team's live positional strength — rank on active players only.
+  const activeByRoster = new Map<number, string[]>(
+    rosters.map((r) => {
+      const taxi = new Set(r.taxi);
+      return [r.roster_id, r.players.filter((pid) => !taxi.has(pid))];
+    })
+  );
+  const active = (r: FullRoster) => activeByRoster.get(r.roster_id) ?? [];
+
   // Each team's dedicated RB/WR/TE starters — excluded from the Flex room.
   const dedicated = new Map<number, Set<string>>();
   for (const r of rosters) {
     const set = new Set<string>();
     for (const pos of ["RB", "WR", "TE"] as const) {
-      (r.players ?? [])
+      active(r)
         .filter((pid) => posOf(pid) === pos && qualified(pid))
         .sort((a, b) => ppg(b) - ppg(a))
         .slice(0, nFor[pos])
@@ -127,7 +138,7 @@ export async function getRoomStrength(
 
     // League-wide pool rank at this position (by PPG).
     const pool = rosters
-      .flatMap((r) => r.players ?? [])
+      .flatMap((r) => active(r))
       .filter((pid) => eligible.has(posOf(pid)) && qualified(pid))
       .map((pid) => ({ pid, ppg: ppg(pid) }))
       .sort((a, b) => b.ppg - a.ppg);
@@ -137,7 +148,7 @@ export async function getRoomStrength(
     const teams = rosters.map((r) => {
       const u = r.owner_id ? byOwner.get(r.owner_id) : undefined;
       const ded = g.key === "FLEX" ? dedicated.get(r.roster_id) ?? new Set() : new Set<string>();
-      const players: RoomPlayer[] = (r.players ?? [])
+      const players: RoomPlayer[] = active(r)
         .filter((pid) => posRankOf.has(pid) && !ded.has(pid))
         .map((pid) => ({
           id: pid,
