@@ -58,10 +58,14 @@ function profileForTeam(
     const label = shortPos(room.position);
     const S = room.startersN;
     const ranks = team.players.map((p) => p.posRank).sort((a, b) => a - b);
-    // A player's tier band. A player can start any slot at or below their band
-    // (a WR1 can fill the WR2 slot), so we assign greedily: players best-first,
-    // each takes the lowest free slot they qualify for. Leftover slots = needs.
-    const bands = ranks.map((r) => Math.ceil(r / teamCount));
+    // Band width. Dedicated positions use one tier per team (QB1 = 1–10). Flex
+    // draws from a much deeper pool (everyone's non-starters), so a startable
+    // flex piece can sit further down — widen its bands to 2× (FLX1 = 1–20).
+    const bandWidth = room.position === "FLEX" ? 2 * teamCount : teamCount;
+    // A player can start any slot at or below their band (a WR1 can fill the
+    // WR2 slot), so we assign greedily: players best-first, each takes the
+    // lowest free slot they qualify for. Leftover slots = needs.
+    const bands = ranks.map((r) => Math.ceil(r / bandWidth));
     const openSlots = Array.from({ length: S }, (_, i) => i + 1);
     const unusedBands: number[] = [];
     for (const b of bands) {
@@ -77,7 +81,7 @@ function profileForTeam(
     if (openSlots.length === 0) {
       const hasDepth = unusedBands.some((b) => b <= S + 1);
       if (!hasDepth) {
-        const hi = S * teamCount;
+        const hi = S * bandWidth;
         const nextBeyond = ranks.find((r) => r > hi);
         const cliff = nextBeyond ? nextBeyond - hi : Number.MAX_SAFE_INTEGER;
         depthGaps.push({
