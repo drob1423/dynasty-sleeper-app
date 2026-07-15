@@ -93,7 +93,7 @@ export function TeamIdentity({ t }: { t: TeamCard }) {
         </div>
       </div>
       {/* Activity pills — trades, moves, FAAB */}
-      <div className="flex shrink-0 items-center gap-1.5">
+      <div className="flex shrink-0 items-center gap-2">
         <ActivityPill label="Trades" value={`${t.trades}`} />
         <ActivityPill label="Moves" value={`${t.moves}`} />
         <ActivityPill label="FAAB" value={t.faab != null ? `$${t.faab}` : "—"} />
@@ -104,7 +104,7 @@ export function TeamIdentity({ t }: { t: TeamCard }) {
 
 function ActivityPill({ label, value }: { label: string; value: string }) {
   return (
-    <span className="rounded-full bg-zinc-800/80 px-2.5 py-1 text-[11px] text-zinc-400">
+    <span className="rounded-full bg-zinc-800/80 px-3.5 py-1.5 text-[13px] text-zinc-400">
       {label} <span className="font-semibold text-zinc-100">{value}</span>
     </span>
   );
