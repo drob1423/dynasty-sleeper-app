@@ -59,26 +59,14 @@ function profileForTeam(
     const S = room.startersN;
     const ranks = team.players.map((p) => p.posRank).sort((a, b) => a - b);
 
-    // Flex is the leftover slot — filled by the best skill players that aren't
-    // already dedicated starters. Its pool is ranked by points across RB/WR/TE,
-    // so scarcity is baked in (a high-scoring TE and WR sit next to each other).
-    // The startable pool is the top (flex slots × teams); a team is short only
-    // if it has fewer of those than it has flex slots. There's no "elite flex"
-    // tier the way there is for dedicated spots, so this is a straight count.
-    if (room.position === "FLEX") {
-      const universe = S * teamCount;
-      const startable = ranks.filter((r) => r <= universe).length;
-      for (let k = startable + 1; k <= S; k++) {
-        starterNeeds.push({ pos: room.position, tier: k, label: `${label}${k}` });
-      }
-      continue;
-    }
-
-    // Dedicated positions carve the rank into one tier per team (QB1 = 1–10).
-    // A player can start any slot at or below their band (a WR1 can fill the
-    // WR2 slot), so we assign greedily: players best-first, each takes the
-    // lowest free slot they qualify for. Leftover slots = needs.
-    const bands = ranks.map((r) => Math.ceil(r / teamCount));
+    // Assign players to starter slots. A player can start any slot at or below
+    // their tier band (a WR1 can fill the WR2 slot), so go best-first and each
+    // takes the lowest free slot it qualifies for; leftover slots = needs.
+    // Dedicated positions use one tier per team (QB1 = rank 1–10). Flex draws
+    // from a much deeper pool, so its tiers are 2× wide (FLX1 = 1–20, FLX2 =
+    // 21–40) — a team's surplus starters and a solid #22 flex both register.
+    const bandWidth = room.position === "FLEX" ? 2 * teamCount : teamCount;
+    const bands = ranks.map((r) => Math.ceil(r / bandWidth));
     const openSlots = Array.from({ length: S }, (_, i) => i + 1);
     const unusedBands: number[] = [];
     for (const b of bands) {
@@ -90,8 +78,9 @@ function profileForTeam(
       starterNeeds.push({ pos: room.position, tier: k, label: `${label}${k}` });
     }
 
-    // Starters covered — is there startable depth (a spare of band ≤ S+1)?
-    if (openSlots.length === 0) {
+    // Depth need (the next band past the starters) — dedicated spots only. Flex
+    // is already the depth slot, so we don't chase flex depth.
+    if (room.position !== "FLEX" && openSlots.length === 0) {
       const hasDepth = unusedBands.some((b) => b <= S + 1);
       if (!hasDepth) {
         const hi = S * teamCount;
