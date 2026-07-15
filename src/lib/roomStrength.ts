@@ -187,27 +187,26 @@ export async function getRoomStrength(
       const core = activePlayers.slice(0, N);
       const bench = activePlayers.slice(N);
 
-      // Taxi/IR players — shown for context only, never counted. Dedicated rooms
-      // only (they'd be redundant clutter in the Flex room).
-      const inactivePlayers: RoomPlayer[] =
-        g.key === "FLEX"
-          ? []
-          : r.players
-              .filter(
-                (pid) =>
-                  statusOf(pid) !== "active" &&
-                  eligible.has(posOf(pid)) &&
-                  qualified(pid)
-              )
-              .map((pid) => ({
-                id: pid,
-                name: playerMap[pid]?.name ?? pid,
-                team: playerMap[pid]?.team ?? null,
-                posRank: wouldBeRank(pid),
-                isStarter: false,
-                status: statusOf(pid),
-                ...stats[pid],
-              }));
+      // Taxi/IR players — shown for context only, never counted. They surface in
+      // every room they're eligible for, Flex included (a flex-eligible IR/taxi
+      // player would otherwise vanish from the Flex view), each with a badge.
+      const inactivePlayers: RoomPlayer[] = r.players
+        .filter(
+          (pid) =>
+            statusOf(pid) !== "active" &&
+            eligible.has(posOf(pid)) &&
+            qualified(pid) &&
+            !ded.has(pid)
+        )
+        .map((pid) => ({
+          id: pid,
+          name: playerMap[pid]?.name ?? pid,
+          team: playerMap[pid]?.team ?? null,
+          posRank: wouldBeRank(pid),
+          isStarter: false,
+          status: statusOf(pid),
+          ...stats[pid],
+        }));
 
       // Display list mixes active + inactive by production; counted math above
       // only ever looks at `core`/`bench`, so the badges don't skew anything.
