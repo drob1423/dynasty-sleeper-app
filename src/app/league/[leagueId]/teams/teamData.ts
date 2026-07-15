@@ -53,7 +53,7 @@ export type TeamCard = {
   silver: number; // 2nd-place finishes
   bronze: number; // 3rd-place finishes
   bestFinish: number | null; // best final placement across the dynasty (1 = title)
-  bestFinishSeason: string | null; // the year that best finish happened
+  bestFinishSeasons: string[]; // every year that best finish happened
   leagueSize: number; // teams in the league (denominator for a finish)
 };
 
@@ -178,7 +178,7 @@ export async function loadTeamCards(
   const perSeasonRostersPlayed = playedOldestFirst.map(
     (s) => rostersByLeagueId.get(s.league_id) ?? []
   );
-  const bestFinish = new Map<number, { place: number; season: string }>();
+  const bestFinish = new Map<number, { place: number; seasons: string[] }>();
   playoffsPerSeason.forEach((pr, i) => {
     const season = playedOldestFirst[i]?.season ?? "";
     const seasonRosters = perSeasonRostersPlayed[i] ?? [];
@@ -194,11 +194,16 @@ export async function loadTeamCards(
       .filter((r) => !finishes.has(r.roster_id))
       .sort((a, b) => b.wins - a.wins || b.fpts - a.fpts)
       .forEach((r, k) => finishes.set(r.roster_id, maxPlaced + k + 1));
-    // Track the placement AND the year it happened. On a tie for best place we
-    // keep the most recent season (we iterate oldest→newest, so `<=` wins).
+    // Track the best placement AND every season it happened (chronological,
+    // since we iterate oldest→newest): a better place resets the year list, a
+    // repeat of the best place appends its year.
     finishes.forEach((place, rid) => {
       const cur = bestFinish.get(rid);
-      if (!cur || place <= cur.place) bestFinish.set(rid, { place, season });
+      if (!cur || place < cur.place) {
+        bestFinish.set(rid, { place, seasons: [season] });
+      } else if (place === cur.place) {
+        cur.seasons.push(season);
+      }
     });
   });
 
@@ -300,7 +305,7 @@ export async function loadTeamCards(
       silver: medals.get(r.roster_id)?.s ?? 0,
       bronze: medals.get(r.roster_id)?.b ?? 0,
       bestFinish: bestFinish.get(r.roster_id)?.place ?? null,
-      bestFinishSeason: bestFinish.get(r.roster_id)?.season ?? null,
+      bestFinishSeasons: bestFinish.get(r.roster_id)?.seasons ?? [],
       leagueSize: currentFull.length,
       faab: faabBudget > 0 ? faabBudget - r.waiverBudgetUsed : null,
     };

@@ -149,6 +149,12 @@ export function TeamStatsBody({
       : t.bestFinish === 3
       ? " 🥉"
       : "";
+  // Career hardware tally for the all-time hero (only medals they actually have).
+  const trophyCase = [
+    t.rings > 0 ? `🥇${t.rings}` : null,
+    t.silver > 0 ? `🥈${t.silver}` : null,
+    t.bronze > 0 ? `🥉${t.bronze}` : null,
+  ].filter(Boolean);
 
   return (
     <>
@@ -173,6 +179,13 @@ export function TeamStatsBody({
                   {winPct(allW, allL)}
                 </span>
               </div>
+              {trophyCase.length > 0 && (
+                <div className="mt-2 flex items-center gap-2.5 text-xs font-semibold text-zinc-300">
+                  {trophyCase.map((m) => (
+                    <span key={m}>{m}</span>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="flex gap-2">
               <RecPill
@@ -249,7 +262,7 @@ export function TeamStatsBody({
               label="Best Finish"
               value={t.bestFinish ? `${ordinal(t.bestFinish)}${finishMedal}` : "—"}
               color={finishColor}
-              sub={t.bestFinishSeason ?? undefined}
+              sub={t.bestFinishSeasons.join(", ") || undefined}
             />
           </div>
         </div>
