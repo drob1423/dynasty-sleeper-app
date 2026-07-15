@@ -53,6 +53,7 @@ export type TeamCard = {
   silver: number; // 2nd-place finishes
   bronze: number; // 3rd-place finishes
   bestFinish: number | null; // best final placement across the dynasty (1 = title)
+  bestFinishSeason: string | null; // the year that best finish happened
   leagueSize: number; // teams in the league (denominator for a finish)
 };
 
@@ -177,8 +178,9 @@ export async function loadTeamCards(
   const perSeasonRostersPlayed = playedOldestFirst.map(
     (s) => rostersByLeagueId.get(s.league_id) ?? []
   );
-  const bestFinish = new Map<number, number>();
+  const bestFinish = new Map<number, { place: number; season: string }>();
   playoffsPerSeason.forEach((pr, i) => {
+    const season = playedOldestFirst[i]?.season ?? "";
     const seasonRosters = perSeasonRostersPlayed[i] ?? [];
     const finishes = new Map<number, number>();
     let maxPlaced = 0;
@@ -192,9 +194,12 @@ export async function loadTeamCards(
       .filter((r) => !finishes.has(r.roster_id))
       .sort((a, b) => b.wins - a.wins || b.fpts - a.fpts)
       .forEach((r, k) => finishes.set(r.roster_id, maxPlaced + k + 1));
-    finishes.forEach((place, rid) =>
-      bestFinish.set(rid, Math.min(bestFinish.get(rid) ?? Infinity, place))
-    );
+    // Track the placement AND the year it happened. On a tie for best place we
+    // keep the most recent season (we iterate oldest→newest, so `<=` wins).
+    finishes.forEach((place, rid) => {
+      const cur = bestFinish.get(rid);
+      if (!cur || place <= cur.place) bestFinish.set(rid, { place, season });
+    });
   });
 
   // Last completed season: points for + rank by PF.
@@ -294,7 +299,8 @@ export async function loadTeamCards(
       rings: medals.get(r.roster_id)?.g ?? 0,
       silver: medals.get(r.roster_id)?.s ?? 0,
       bronze: medals.get(r.roster_id)?.b ?? 0,
-      bestFinish: bestFinish.get(r.roster_id) ?? null,
+      bestFinish: bestFinish.get(r.roster_id)?.place ?? null,
+      bestFinishSeason: bestFinish.get(r.roster_id)?.season ?? null,
       leagueSize: currentFull.length,
       faab: faabBudget > 0 ? faabBudget - r.waiverBudgetUsed : null,
     };

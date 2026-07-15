@@ -131,9 +131,8 @@ export function TeamStatsBody({
   const allW = t.dynastyW + t.playoffW;
   const allL = t.dynastyL + t.playoffL;
 
-  // Best career finish = the actual numerical placement (1st … last). Any
-  // hardware (medals) is tallied beneath it so a top finish shows its trophy
-  // without the medal itself implying the place.
+  // Best career finish = the actual numerical placement (1st … last), with the
+  // year it happened beneath it.
   const finishColor =
     t.bestFinish === 1
       ? "text-amber-400"
@@ -142,13 +141,6 @@ export function TeamStatsBody({
       : t.bestFinish === 3
       ? "text-amber-600"
       : undefined;
-  const hardware = [
-    t.rings > 0 ? `${t.rings}🥇` : null,
-    t.silver > 0 ? `${t.silver}🥈` : null,
-    t.bronze > 0 ? `${t.bronze}🥉` : null,
-  ]
-    .filter(Boolean)
-    .join(" ");
 
   return (
     <>
@@ -249,7 +241,7 @@ export function TeamStatsBody({
               label="Best Finish"
               value={t.bestFinish ? ordinal(t.bestFinish) : "—"}
               color={finishColor}
-              sub={hardware || undefined}
+              sub={t.bestFinishSeason ?? undefined}
             />
           </div>
         </div>
