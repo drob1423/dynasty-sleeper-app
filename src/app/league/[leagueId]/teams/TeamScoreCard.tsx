@@ -92,8 +92,9 @@ export function TeamIdentity({ t }: { t: TeamCard }) {
           )}
         </div>
       </div>
-      {/* Activity pills — trades, moves, FAAB */}
-      <div className="flex shrink-0 items-center gap-2">
+      {/* Activity pills — trades, moves, FAAB. Full-width own row on mobile so
+          they never collide with the name/badges; inline on desktop. */}
+      <div className="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto">
         <ActivityPill label="Trades" value={`${t.trades}`} />
         <ActivityPill label="Moves" value={`${t.moves}`} />
         <ActivityPill label="FAAB" value={t.faab != null ? `$${t.faab}` : "—"} />
