@@ -117,7 +117,16 @@ function profileForTeam(
   needs.sort(
     (a, b) => a.tier - b.tier || POS_ORDER.indexOf(a.pos) - POS_ORDER.indexOf(b.pos)
   );
-  strengths.sort((a, b) => a.rank - b.rank);
 
-  return { needs, strengths };
+  // A position can't be both a need and a strength. Needs are absolute (no elite
+  // player at that spot); strength is relative placement vs the league. A team
+  // can rank well relative to weak peers while still lacking an elite piece — but
+  // showing both reads as a contradiction and isn't a real trade asset, so drop
+  // any "strength" at a position we've already flagged as a need.
+  const needPos = new Set(needs.map((n) => n.pos));
+  const finalStrengths = strengths
+    .filter((s) => !needPos.has(s.pos))
+    .sort((a, b) => a.rank - b.rank);
+
+  return { needs, strengths: finalStrengths };
 }
