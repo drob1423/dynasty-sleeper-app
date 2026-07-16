@@ -46,6 +46,8 @@ export type TeamCard = {
   faab: number | null;
   pf: number | null; // points for, last completed season
   pfRank: number | null; // rank by PF that season
+  pa: number | null; // points against, last completed season
+  paRank: number | null; // rank by PA that season (most points-against = 1st)
   luck: number | null; // actual − expected wins across the dynasty
   expWins: number | null; // expected wins (for the sub label)
   games: number | null; // total regular-season games (for expected record)
@@ -210,11 +212,20 @@ export async function loadTeamCards(
   // Last completed season: points for + rank by PF.
   const pfByRoster = new Map<number, number>();
   const pfRankByRoster = new Map<number, number>();
+  const paByRoster = new Map<number, number>();
+  const paRankByRoster = new Map<number, number>();
   if (lastPlayedIndex >= 0) {
-    perSeasonRosters[lastPlayedIndex].forEach((r) => pfByRoster.set(r.roster_id, r.fpts));
+    perSeasonRosters[lastPlayedIndex].forEach((r) => {
+      pfByRoster.set(r.roster_id, r.fpts);
+      paByRoster.set(r.roster_id, r.fpts_against);
+    });
     [...perSeasonRosters[lastPlayedIndex]]
       .sort((a, b) => b.fpts - a.fpts)
       .forEach((r, i) => pfRankByRoster.set(r.roster_id, i + 1));
+    // Most points-against ranks 1st (a bragging right — you can't control it).
+    [...perSeasonRosters[lastPlayedIndex]]
+      .sort((a, b) => b.fpts_against - a.fpts_against)
+      .forEach((r, i) => paRankByRoster.set(r.roster_id, i + 1));
   }
 
   // Sum trades + moves from the transaction log.
@@ -295,6 +306,8 @@ export async function loadTeamCards(
       moves: moves.get(r.roster_id) ?? 0,
       pf: pfByRoster.get(r.roster_id) ?? null,
       pfRank: pfRankByRoster.get(r.roster_id) ?? null,
+      pa: paByRoster.get(r.roster_id) ?? null,
+      paRank: paRankByRoster.get(r.roster_id) ?? null,
       luck: (() => {
         const l = luckAgg.get(r.roster_id);
         return l ? l.actual - l.expected : null;

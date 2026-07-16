@@ -168,7 +168,7 @@ export function TeamStatsBody({
                 All-Time Record
               </div>
               <div className="mt-1 flex items-baseline gap-2">
-                <span className="text-3xl font-extrabold leading-none tracking-tight text-white">
+                <span className="whitespace-nowrap text-3xl font-extrabold leading-none tracking-tight text-white">
                   {allW}-{allL}
                 </span>
                 <span
@@ -187,7 +187,7 @@ export function TeamStatsBody({
                 </div>
               )}
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap justify-end gap-2">
               <RecPill
                 label="Reg"
                 rec={`${t.dynastyW}-${t.dynastyL}`}
@@ -197,6 +197,12 @@ export function TeamStatsBody({
                 label="Playoffs"
                 rec={`${t.playoffW}-${t.playoffL}`}
                 pct={winPct(t.playoffW, t.playoffL)}
+              />
+              <RecPill
+                label="Best"
+                rec={t.bestFinish ? `${ordinal(t.bestFinish)}${finishMedal}` : "—"}
+                pct={t.bestFinishSeasons.join(", ")}
+                valueClass={finishColor}
               />
             </div>
           </div>
@@ -237,6 +243,15 @@ export function TeamStatsBody({
               color={t.pfRank && t.pfRank <= 3 ? "text-emerald-400" : undefined}
             />
             <BigStat
+              label="Points Against"
+              value={t.paRank ? ordinal(t.paRank) : "—"}
+              sub={
+                t.pa != null
+                  ? `${Math.round(t.pa).toLocaleString()} pts`
+                  : undefined
+              }
+            />
+            <BigStat
               label="Luck"
               value={
                 t.luck != null
@@ -257,12 +272,6 @@ export function TeamStatsBody({
                     )}`
                   : undefined
               }
-            />
-            <BigStat
-              label="Best Finish"
-              value={t.bestFinish ? `${ordinal(t.bestFinish)}${finishMedal}` : "—"}
-              color={finishColor}
-              sub={t.bestFinishSeasons.join(", ") || undefined}
             />
           </div>
         </div>
@@ -338,11 +347,23 @@ function H2HStrip({ rec }: { rec: H2HRecord | null }) {
   );
 }
 
-function RecPill({ label, rec, pct }: { label: string; rec: string; pct: string }) {
+function RecPill({
+  label,
+  rec,
+  pct,
+  valueClass,
+}: {
+  label: string;
+  rec: string;
+  pct: string;
+  valueClass?: string;
+}) {
   return (
-    <div className="min-w-[62px] rounded-xl border border-zinc-700/50 bg-zinc-950/60 px-2.5 py-1.5 text-center">
+    <div className="min-w-[58px] rounded-xl border border-zinc-700/50 bg-zinc-950/60 px-2.5 py-1.5 text-center">
       <div className="text-[9px] font-bold uppercase tracking-wide text-zinc-500">{label}</div>
-      <div className="mt-0.5 text-sm font-extrabold text-zinc-100">{rec}</div>
+      <div className={`mt-0.5 whitespace-nowrap text-sm font-extrabold ${valueClass ?? "text-zinc-100"}`}>
+        {rec}
+      </div>
       <div className="text-[9px] text-zinc-600">{pct}</div>
     </div>
   );
