@@ -213,7 +213,7 @@ export function TeamStatsBody({
         </div>
         <div className="mt-2 grid grid-cols-3 gap-2">
           <InnerTile
-            label="Points For"
+            label="PF"
             value={t.allTimePfRank ? ordinal(t.allTimePfRank) : "—"}
             valueClass={
               t.allTimePfRank && t.allTimePfRank <= 3 ? "text-emerald-400" : undefined
@@ -221,7 +221,7 @@ export function TeamStatsBody({
             sub={pts(t.allTimePf)}
           />
           <InnerTile
-            label="Points Agnst"
+            label="PA"
             value={t.allTimePaRank ? ordinal(t.allTimePaRank) : "—"}
             sub={pts(t.allTimePa)}
           />
@@ -391,7 +391,7 @@ function SeasonSection({ seasons }: { seasons: SeasonLine[] }) {
           </div>
           <div className="mt-2 grid grid-cols-2 gap-2">
             <Tile
-              label="Points For"
+              label="PF"
               value={selected.pfRank ? ordinal(selected.pfRank) : "—"}
               valueClass={
                 selected.pfRank && selected.pfRank <= 3
@@ -405,7 +405,7 @@ function SeasonSection({ seasons }: { seasons: SeasonLine[] }) {
               }
             />
             <Tile
-              label="Points Against"
+              label="PA"
               value={selected.paRank ? ordinal(selected.paRank) : "—"}
               sub={
                 selected.pa
