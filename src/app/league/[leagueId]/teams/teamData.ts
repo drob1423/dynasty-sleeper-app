@@ -48,6 +48,10 @@ export type TeamCard = {
   pfRank: number | null; // rank by PF that season
   pa: number | null; // points against, last completed season
   paRank: number | null; // rank by PA that season (most points-against = 1st)
+  allTimePfRank: number | null; // all-time regular-season PF rank (most = 1st)
+  allTimePaRank: number | null; // all-time regular-season PA rank (most = 1st)
+  currentPfRank: number | null; // current-season PF rank (null until games play)
+  currentPaRank: number | null; // current-season PA rank (null until games play)
   luck: number | null; // actual − expected wins across the dynasty
   expWins: number | null; // expected wins (for the sub label)
   games: number | null; // total regular-season games (for expected record)
@@ -145,6 +149,42 @@ export async function loadTeamCards(
       dyn.set(r.roster_id, d);
     })
   );
+
+  // All-time regular-season points for/against, summed across every season and
+  // ranked most-first (same convention as the standings: most PF is 1st; most
+  // PA is 1st — a can't-control bragging right). Sleeper's roster fpts are the
+  // regular-season totals.
+  const rankDesc = (m: Map<number, number>) => {
+    const out = new Map<number, number>();
+    [...m.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .forEach(([rid], i) => out.set(rid, i + 1));
+    return out;
+  };
+  const pfAll = new Map<number, number>();
+  const paAll = new Map<number, number>();
+  perSeasonRosters.forEach((rosters) =>
+    rosters.forEach((r) => {
+      pfAll.set(r.roster_id, (pfAll.get(r.roster_id) ?? 0) + r.fpts);
+      paAll.set(r.roster_id, (paAll.get(r.roster_id) ?? 0) + r.fpts_against);
+    })
+  );
+  const allTimePfRankMap = rankDesc(pfAll);
+  const allTimePaRankMap = rankDesc(paAll);
+
+  // Current season's PF/PA ranks — empty until the season actually kicks off.
+  const curRosters = perSeasonRosters[0] ?? [];
+  const curHasData = curRosters.some((r) => r.fpts > 0);
+  const curPfRankMap = new Map<number, number>();
+  const curPaRankMap = new Map<number, number>();
+  if (curHasData) {
+    [...curRosters]
+      .sort((a, b) => b.fpts - a.fpts)
+      .forEach((r, i) => curPfRankMap.set(r.roster_id, i + 1));
+    [...curRosters]
+      .sort((a, b) => b.fpts_against - a.fpts_against)
+      .forEach((r, i) => curPaRankMap.set(r.roster_id, i + 1));
+  }
 
   // Sum luck (actual vs all-play expected wins) across the dynasty.
   const luckAgg = new Map<number, { actual: number; expected: number; games: number }>();
@@ -324,6 +364,10 @@ export async function loadTeamCards(
       pfRank: pfRankByRoster.get(r.roster_id) ?? null,
       pa: paByRoster.get(r.roster_id) ?? null,
       paRank: paRankByRoster.get(r.roster_id) ?? null,
+      allTimePfRank: allTimePfRankMap.get(r.roster_id) ?? null,
+      allTimePaRank: allTimePaRankMap.get(r.roster_id) ?? null,
+      currentPfRank: curPfRankMap.get(r.roster_id) ?? null,
+      currentPaRank: curPaRankMap.get(r.roster_id) ?? null,
       luck: (() => {
         const l = luckAgg.get(r.roster_id);
         return l ? l.actual - l.expected : null;

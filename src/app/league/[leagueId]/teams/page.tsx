@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { loadTeamCards, type TeamCard } from "./teamData";
+import { ordinal } from "./TeamScoreCard";
 import { getRoomStrength } from "@/lib/roomStrength";
 import { computeTradeProfiles, type TradeProfile } from "./tradeProfile";
 import { NeedsStrengths } from "./NeedsStrengths";
@@ -105,6 +106,14 @@ function RivalCard({
       ? "text-red-400"
       : "text-white";
 
+  // Sub-lines: PF/PA ranks (all-time reg-season for the record, current season
+  // for this year) and the playoff H2H record (0-0 until you've met in the PO).
+  const rankPair = (pf: number | null, pa: number | null) =>
+    pf && pa ? `PF ${ordinal(pf)} · PA ${ordinal(pa)}` : "PF — · PA —";
+  const allTimeRanks = rankPair(t.allTimePfRank, t.allTimePaRank);
+  const currentRanks = rankPair(t.currentPfRank, t.currentPaRank);
+  const poRecord = `PO ${h2h ? `${h2h.poW}-${h2h.poL}` : "0-0"}`;
+
   return (
     <Link
       href={`teams/${t.rosterId}`}
@@ -152,15 +161,17 @@ function RivalCard({
 
       {/* Quick-hitter stats */}
       <div className="mt-3.5 grid grid-cols-3 gap-2">
-        <StatTile label="All-Time" value={`${allW}-${allL}`} sub={winPct(allW, allL)} />
+        <StatTile label="All-Time" value={`${allW}-${allL}`} sub={allTimeRanks} />
         <StatTile
           label={currentSeason ?? "This Yr"}
           value={`${t.currentW}-${t.currentL}`}
+          sub={currentRanks}
         />
         <StatTile
           label="H2H"
           value={h2hGames ? `${h2h!.regW}-${h2h!.regL}` : "—"}
           valueClass={h2hColor}
+          sub={poRecord}
         />
       </div>
 
@@ -239,9 +250,3 @@ function TrophyCase({
   );
 }
 
-// Win percentage as ".643" (drops the leading zero, fantasy convention).
-function winPct(w: number, l: number): string {
-  const g = w + l;
-  if (!g) return "—";
-  return (w / g).toFixed(3).replace(/^0/, "");
-}
