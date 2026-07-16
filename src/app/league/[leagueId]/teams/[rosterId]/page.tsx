@@ -50,13 +50,13 @@ export default function TeamDetail() {
     <div>
       <Link
         href="../teams"
-        className="inline-flex items-center gap-1.5 rounded-full border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm font-semibold text-zinc-100 shadow-sm transition-colors hover:border-emerald-600 hover:bg-zinc-800 hover:text-white active:scale-[0.98]"
+        className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-700 bg-emerald-950/40 px-4 py-2.5 text-sm font-semibold text-emerald-300 shadow-sm transition-colors hover:border-emerald-500 hover:bg-emerald-900/40 hover:text-emerald-200 active:scale-[0.98]"
       >
-        <span aria-hidden className="text-base leading-none">←</span>
+        <span aria-hidden className="text-lg leading-none">←</span>
         All rivals
       </Link>
 
-      <div className="mt-3">
+      <div className="mt-1">
         {card ? (
           <TeamIdentity t={card} />
         ) : (
