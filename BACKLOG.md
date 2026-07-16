@@ -53,6 +53,26 @@ Two ranking engines that go beyond raw win/loss standings.
   the "impactful injuries" input leans on the taxi/IR + positional-strength work
   already in place.
 
+## Start/Sit Proficiency — week-to-week line graph on a manager's profile
+
+A line graph on a manager's profile tracking how good their lineup decisions
+are, week over week.
+
+- Each week, plot a **start/sit proficiency** point — how close their submitted
+  lineup came to their **optimal lineup** (the best possible starters from their
+  roster that week).
+- Candidate metrics for the y-axis: **points left on the bench** vs. optimal, or
+  a **% of optimal** (actual starter points ÷ optimal lineup points) so weeks are
+  comparable regardless of scoring environment.
+- Line graph shows the **trend** — is this manager getting sharper at start/sit
+  calls over the season, or leaving more points on the bench?
+- Pairs with the **Power Rankings** "start/sit performance" input above — this is
+  the profile-level visualization of that same signal.
+- Open questions: single-season vs. all-time x-axis (and how to segment by
+  season), whether to overlay the league average line for context, how to handle
+  bye weeks / partial weeks, and whether to surface a summary stat (season avg %
+  of optimal) alongside the graph.
+
 ## Known deferred items
 
 - **D/ST + K in the positional needs/strengths engine.** `roomStrength`
