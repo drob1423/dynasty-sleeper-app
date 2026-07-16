@@ -48,8 +48,12 @@ export default function TeamDetail() {
 
   return (
     <div>
-      <Link href="../teams" className="text-sm text-zinc-500 hover:text-zinc-300">
-        ← All rivals
+      <Link
+        href="../teams"
+        className="inline-flex items-center gap-1.5 rounded-full border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm font-semibold text-zinc-100 shadow-sm transition-colors hover:border-emerald-600 hover:bg-zinc-800 hover:text-white active:scale-[0.98]"
+      >
+        <span aria-hidden className="text-base leading-none">←</span>
+        All rivals
       </Link>
 
       <div className="mt-3">
