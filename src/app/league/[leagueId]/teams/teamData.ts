@@ -19,6 +19,20 @@ import {
   type H2HRecord,
 } from "@/lib/sleeper";
 
+// One season's line for a team — regular-season + playoff record and PF/PA
+// (with that season's rank). Powers the "By Season" selector.
+export type SeasonLine = {
+  season: string;
+  regW: number;
+  regL: number;
+  poW: number;
+  poL: number;
+  pf: number;
+  pa: number;
+  pfRank: number | null;
+  paRank: number | null;
+};
+
 export type TeamCard = {
   rosterId: number;
   ownerId: string | null; // Sleeper user id of the current owner
@@ -48,6 +62,8 @@ export type TeamCard = {
   pfRank: number | null; // rank by PF that season
   pa: number | null; // points against, last completed season
   paRank: number | null; // rank by PA that season (most points-against = 1st)
+  allTimePf: number | null; // all-time regular-season points for (total)
+  allTimePa: number | null; // all-time regular-season points against (total)
   allTimePfRank: number | null; // all-time regular-season PF rank (most = 1st)
   allTimePaRank: number | null; // all-time regular-season PA rank (most = 1st)
   currentPfRank: number | null; // current-season PF rank (null until games play)
@@ -62,6 +78,7 @@ export type TeamCard = {
   bestFinish: number | null; // best final placement across the dynasty (1 = title)
   bestFinishSeasons: string[]; // every year that best finish happened
   leagueSize: number; // teams in the league (denominator for a finish)
+  seasons: SeasonLine[]; // per-season lines, most recent first
 };
 
 // Load every team's scorecard data for a league. Shared by the Rivals tab and
@@ -185,6 +202,46 @@ export async function loadTeamCards(
       .sort((a, b) => b.fpts_against - a.fpts_against)
       .forEach((r, i) => curPaRankMap.set(r.roster_id, i + 1));
   }
+
+  // Per-season lines (record, playoff record, PF/PA with that year's rank) for
+  // the "By Season" selector. chain is newest→oldest, so lines come out most
+  // recent first.
+  const playoffBySeason = new Map(
+    playedOldestFirst.map((s, i) => [s.season, playoffsPerSeason[i]])
+  );
+  const seasonLinesByRoster = new Map<number, SeasonLine[]>();
+  chain.forEach((s, ci) => {
+    const rosters = perSeasonRosters[ci] ?? [];
+    if (!rosters.length) return;
+    const hasData = rosters.some((r) => r.fpts > 0);
+    const pfR = new Map<number, number>();
+    const paR = new Map<number, number>();
+    if (hasData) {
+      [...rosters]
+        .sort((a, b) => b.fpts - a.fpts)
+        .forEach((r, i) => pfR.set(r.roster_id, i + 1));
+      [...rosters]
+        .sort((a, b) => b.fpts_against - a.fpts_against)
+        .forEach((r, i) => paR.set(r.roster_id, i + 1));
+    }
+    const po = playoffBySeason.get(s.season);
+    rosters.forEach((r) => {
+      const pr = po?.get(r.roster_id);
+      const arr = seasonLinesByRoster.get(r.roster_id) ?? [];
+      arr.push({
+        season: s.season,
+        regW: r.wins,
+        regL: r.losses,
+        poW: pr?.playoffWins ?? 0,
+        poL: pr?.playoffLosses ?? 0,
+        pf: r.fpts,
+        pa: r.fpts_against,
+        pfRank: hasData ? pfR.get(r.roster_id) ?? null : null,
+        paRank: hasData ? paR.get(r.roster_id) ?? null : null,
+      });
+      seasonLinesByRoster.set(r.roster_id, arr);
+    });
+  });
 
   // Sum luck (actual vs all-play expected wins) across the dynasty.
   const luckAgg = new Map<number, { actual: number; expected: number; games: number }>();
@@ -364,6 +421,8 @@ export async function loadTeamCards(
       pfRank: pfRankByRoster.get(r.roster_id) ?? null,
       pa: paByRoster.get(r.roster_id) ?? null,
       paRank: paRankByRoster.get(r.roster_id) ?? null,
+      allTimePf: pfAll.get(r.roster_id) ?? null,
+      allTimePa: paAll.get(r.roster_id) ?? null,
       allTimePfRank: allTimePfRankMap.get(r.roster_id) ?? null,
       allTimePaRank: allTimePaRankMap.get(r.roster_id) ?? null,
       currentPfRank: curPfRankMap.get(r.roster_id) ?? null,
@@ -381,6 +440,7 @@ export async function loadTeamCards(
       bestFinish: bestFinish.get(r.roster_id)?.place ?? null,
       bestFinishSeasons: bestFinish.get(r.roster_id)?.seasons ?? [],
       leagueSize: currentFull.length,
+      seasons: seasonLinesByRoster.get(r.roster_id) ?? [],
       faab: faabBudget > 0 ? faabBudget - r.waiverBudgetUsed : null,
     };
   });

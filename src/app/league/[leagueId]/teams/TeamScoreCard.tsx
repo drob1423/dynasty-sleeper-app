@@ -1,9 +1,9 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import type { TeamCard } from "./teamData";
-import type { H2HRecord } from "@/lib/sleeper";
+import type { TeamCard, SeasonLine } from "./teamData";
 
 // A team's scorecard. Wrapped in a Link when `href` is passed (Rivals grid);
 // a plain div otherwise (My Team tab). `highlight` gives the emerald treatment.
@@ -108,28 +108,19 @@ function ActivityPill({ label, value }: { label: string; value: string }) {
   );
 }
 
-// Everything below the identity: the all-time record hero, the uniform stat
-// grid, the head-to-head strip, and the activity footer. Exported so the
-// Rivals tab can reveal it inline when a compact row is expanded.
+// Everything below the identity: the all-time record pill (record + medals +
+// reg/playoff/best + all-time PF/PA/luck, all grouped) followed by a By-Season
+// selector. `extra` (the positional radar) renders at the bottom on My Team.
 export function TeamStatsBody({
   t,
   extra,
-  hideH2H,
 }: {
   t: TeamCard;
   extra?: React.ReactNode;
-  hideH2H?: boolean; // Overview tab shows a fuller H2H log below, so it hides this strip
 }) {
-  // Record over the last 5 regular-season games.
-  const l5w = t.form.filter((r) => r === "W").length;
-  const l5l = t.form.filter((r) => r === "L").length;
-
-  // All-time = regular season + meaningful playoff games.
   const allW = t.dynastyW + t.playoffW;
   const allL = t.dynastyL + t.playoffL;
 
-  // Best career finish = the actual numerical placement (1st … last), with the
-  // year it happened beneath it.
   const finishColor =
     t.bestFinish === 1
       ? "text-amber-400"
@@ -146,246 +137,272 @@ export function TeamStatsBody({
       : t.bestFinish === 3
       ? " 🥉"
       : "";
-  // Career hardware tally for the all-time hero (only medals they actually have).
   const trophyCase = [
     t.rings > 0 ? `🥇${t.rings}` : null,
     t.silver > 0 ? `🥈${t.silver}` : null,
     t.bronze > 0 ? `🥉${t.bronze}` : null,
   ].filter(Boolean);
 
-  return (
-    <>
-      {/* Stats + radar side by side on wide screens */}
-      <div className="mt-4 flex flex-col gap-2 md:flex-row md:items-stretch md:gap-3">
-        <div className="flex flex-1 flex-col gap-2">
-          {/* Record hero — all-time up front (accented), reg/playoff alongside */}
-          <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-900/40 bg-gradient-to-br from-emerald-500/[0.10] to-transparent px-4 py-3.5">
-            <div>
-              <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/90">
-                All-Time Record
-              </div>
-              <div className="mt-1 flex items-baseline gap-2">
-                <span className="whitespace-nowrap text-3xl font-extrabold leading-none tracking-tight text-white">
-                  {allW}-{allL}
-                </span>
-                <span
-                  className={`text-sm font-bold ${
-                    allW >= allL ? "text-emerald-400" : "text-zinc-400"
-                  }`}
-                >
-                  {winPct(allW, allL)}
-                </span>
-              </div>
-              {trophyCase.length > 0 && (
-                <div className="mt-2 flex items-center gap-2.5 text-xs font-semibold text-zinc-300">
-                  {trophyCase.map((m) => (
-                    <span key={m}>{m}</span>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="flex flex-wrap justify-end gap-2">
-              <RecPill
-                label="Reg"
-                rec={`${t.dynastyW}-${t.dynastyL}`}
-                pct={winPct(t.dynastyW, t.dynastyL)}
-              />
-              <RecPill
-                label="Playoffs"
-                rec={`${t.playoffW}-${t.playoffL}`}
-                pct={winPct(t.playoffW, t.playoffL)}
-              />
-              <RecPill
-                label="Best"
-                rec={t.bestFinish ? `${ordinal(t.bestFinish)}${finishMedal}` : "—"}
-                pct={t.bestFinishSeasons.join(", ")}
-                valueClass={finishColor}
-              />
-            </div>
-          </div>
+  const luckValue =
+    t.luck != null ? `${t.luck >= 0 ? "+" : ""}${t.luck.toFixed(1)}` : "—";
+  const luckColor =
+    t.luck == null ? undefined : t.luck >= 0 ? "text-emerald-400" : "text-red-400";
+  const expSub =
+    t.expWins != null && t.games != null
+      ? `exp ${Math.round(t.expWins)}-${Math.round(t.games - t.expWins)}`
+      : undefined;
+  const pts = (n: number | null) =>
+    n != null ? `${Math.round(n).toLocaleString()} pts` : undefined;
 
-          {/* Stat tiles — each its own card so they read as distinct stats */}
-          <div className="grid flex-1 grid-cols-3 gap-2">
-            <BigStat label="This Year" value={`${t.currentW}-${t.currentL}`} />
-            <BigStat
-              label="Streak"
-              value={t.streak ? `${t.streak.type}${t.streak.count}` : "—"}
-              color={
-                t.streak?.type === "W"
-                  ? "text-emerald-400"
-                  : t.streak?.type === "L"
-                  ? "text-red-400"
-                  : undefined
-              }
-            />
-            <BigStat
-              label="L5"
-              value={t.form.length ? `${l5w}-${l5l}` : "—"}
-              color={
-                l5w > l5l
-                  ? "text-emerald-400"
-                  : l5l > l5w
-                  ? "text-red-400"
-                  : undefined
-              }
-            />
-            <BigStat
-              label="Points For"
-              value={t.pfRank ? ordinal(t.pfRank) : "—"}
-              sub={
-                t.pf != null
-                  ? `${Math.round(t.pf).toLocaleString()} pts`
-                  : undefined
-              }
-              color={t.pfRank && t.pfRank <= 3 ? "text-emerald-400" : undefined}
-            />
-            <BigStat
-              label="Points Against"
-              value={t.paRank ? ordinal(t.paRank) : "—"}
-              sub={
-                t.pa != null
-                  ? `${Math.round(t.pa).toLocaleString()} pts`
-                  : undefined
-              }
-            />
-            <BigStat
-              label="Luck"
-              value={
-                t.luck != null
-                  ? `${t.luck >= 0 ? "+" : ""}${t.luck.toFixed(1)}`
-                  : "—"
-              }
-              color={
-                t.luck == null
-                  ? undefined
-                  : t.luck >= 0
-                  ? "text-emerald-400"
-                  : "text-red-400"
-              }
-              sub={
-                t.expWins != null && t.games != null
-                  ? `exp ${Math.round(t.expWins)}-${Math.round(
-                      t.games - t.expWins
-                    )}`
-                  : undefined
-              }
-            />
-          </div>
+  return (
+    <div className="mt-4 space-y-5">
+      {/* ALL-TIME — everything all-time grouped in one pill */}
+      <div className="rounded-2xl border border-emerald-900/40 bg-gradient-to-br from-emerald-500/[0.10] to-transparent px-4 pb-3.5 pt-3.5">
+        <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/90">
+          All-Time Record
         </div>
-        {/* Positional strength radar (My Team) — beside the stats */}
-        {extra && <div className="shrink-0 md:w-[300px]">{extra}</div>}
-      </div>
-
-      {/* Your head-to-head vs this team (hidden on your own card, and on the
-          Overview tab where a fuller game-by-game log is shown instead) */}
-      {!hideH2H && <H2HStrip rec={t.h2h} />}
-    </>
-  );
-}
-
-// The logged-in user's head-to-head record vs this team.
-function H2HStrip({ rec }: { rec: H2HRecord | null }) {
-  if (!rec) return null; // your own team
-
-  const color = (w: number, l: number) =>
-    w > l ? "text-emerald-400" : l > w ? "text-red-400" : "text-zinc-400";
-  const avgColor = (mine: number, opp: number) =>
-    mine > opp ? "text-emerald-400" : opp > mine ? "text-red-400" : "text-zinc-400";
-
-  const regGames = rec.regW + rec.regL + rec.regT;
-  const poGames = rec.poW + rec.poL + rec.poT;
-
-  const line = (
-    label: string,
-    w: number,
-    l: number,
-    t: number,
-    games: number,
-    myPts: number,
-    oppPts: number
-  ) => {
-    const myAvg = games ? myPts / games : null;
-    const oppAvg = games ? oppPts / games : null;
-    return (
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="text-sm">
-          <span className={`font-semibold ${color(w, l)}`}>
-            {w}–{l}
-            {t > 0 && `–${t}`}
+        <div className="mt-1 flex items-baseline gap-2">
+          <span className="whitespace-nowrap text-3xl font-extrabold leading-none tracking-tight text-white">
+            {allW}-{allL}
           </span>
-          <span className="text-xs text-zinc-600"> {label}</span>
-        </span>
-        <span className="shrink-0 text-xs">
-          {myAvg != null && oppAvg != null ? (
-            <>
-              <span className={`font-medium ${avgColor(myAvg, oppAvg)}`}>
-                {myAvg.toFixed(1)}
-              </span>
-              <span className="text-zinc-600">–{oppAvg.toFixed(1)} avg</span>
-            </>
-          ) : (
-            <span className="text-zinc-600">no games</span>
-          )}
-        </span>
+          <span
+            className={`text-sm font-bold ${
+              allW >= allL ? "text-emerald-400" : "text-zinc-400"
+            }`}
+          >
+            {winPct(allW, allL)}
+          </span>
+        </div>
+        {trophyCase.length > 0 && (
+          <div className="mt-2 flex items-center gap-2.5 text-xs font-semibold text-zinc-300">
+            {trophyCase.map((m) => (
+              <span key={m}>{m}</span>
+            ))}
+          </div>
+        )}
+        <div className="mt-3.5 grid grid-cols-3 gap-2 border-t border-emerald-900/40 pt-3.5">
+          <InnerTile
+            label="Reg Season"
+            value={`${t.dynastyW}-${t.dynastyL}`}
+            sub={winPct(t.dynastyW, t.dynastyL)}
+          />
+          <InnerTile
+            label="Playoffs"
+            value={`${t.playoffW}-${t.playoffL}`}
+            sub={winPct(t.playoffW, t.playoffL)}
+          />
+          <InnerTile
+            label="Best"
+            value={t.bestFinish ? `${ordinal(t.bestFinish)}${finishMedal}` : "—"}
+            valueClass={finishColor}
+            sub={t.bestFinishSeasons.join(", ") || undefined}
+          />
+        </div>
+        <div className="mt-2 grid grid-cols-3 gap-2">
+          <InnerTile
+            label="Points For"
+            value={t.allTimePfRank ? ordinal(t.allTimePfRank) : "—"}
+            valueClass={
+              t.allTimePfRank && t.allTimePfRank <= 3 ? "text-emerald-400" : undefined
+            }
+            sub={pts(t.allTimePf)}
+          />
+          <InnerTile
+            label="Points Agnst"
+            value={t.allTimePaRank ? ordinal(t.allTimePaRank) : "—"}
+            sub={pts(t.allTimePa)}
+          />
+          <InnerTile label="Luck" value={luckValue} valueClass={luckColor} sub={expSub} />
+        </div>
       </div>
-    );
-  };
 
-  return (
-    <div className="mt-4 rounded-xl border border-emerald-900/50 bg-emerald-950/20 px-3.5 py-2.5">
-      <div className="mb-1.5 text-[10px] uppercase tracking-wide text-zinc-500">
-        H2H Matchup
-      </div>
-      <div className="space-y-1">
-        {line("reg", rec.regW, rec.regL, rec.regT, regGames, rec.myPtsFor, rec.oppPtsFor)}
-        {line("po", rec.poW, rec.poL, rec.poT, poGames, rec.myPtsForPO, rec.oppPtsForPO)}
-      </div>
+      {/* BY SEASON */}
+      {t.seasons.length > 0 && <SeasonSection seasons={t.seasons} />}
+
+      {extra}
     </div>
   );
 }
 
-function RecPill({
+// A subtle tile that lives INSIDE the all-time pill.
+function InnerTile({
   label,
-  rec,
-  pct,
+  value,
+  sub,
   valueClass,
 }: {
   label: string;
-  rec: string;
-  pct: string;
+  value: string;
+  sub?: string;
   valueClass?: string;
 }) {
   return (
-    <div className="min-w-[58px] rounded-xl border border-zinc-700/50 bg-zinc-950/60 px-2.5 py-1.5 text-center">
-      <div className="text-[9px] font-bold uppercase tracking-wide text-zinc-500">{label}</div>
-      <div className={`mt-0.5 whitespace-nowrap text-sm font-extrabold ${valueClass ?? "text-zinc-100"}`}>
-        {rec}
+    <div className="rounded-[10px] bg-black/25 px-1 py-2 text-center">
+      <div className="text-[8.5px] font-bold uppercase tracking-wide text-emerald-200/45">
+        {label}
       </div>
-      <div className="text-[9px] text-zinc-600">{pct}</div>
+      <div
+        className={`mt-1 whitespace-nowrap text-[15px] font-extrabold ${
+          valueClass ?? "text-white"
+        }`}
+      >
+        {value}
+      </div>
+      {sub && <div className="mt-0.5 text-[8.5px] text-emerald-200/25">{sub}</div>}
     </div>
   );
 }
 
-function BigStat({
+// A standalone stat tile (the By-Season panel).
+function Tile({
   label,
   value,
-  color,
   sub,
+  valueClass,
 }: {
   label: string;
   value: string;
-  color?: string;
   sub?: string;
+  valueClass?: string;
 }) {
   return (
     <div className="rounded-xl border border-zinc-800 bg-zinc-900 px-2 py-2.5 text-center">
       <div className="text-[9.5px] font-bold uppercase tracking-wide text-zinc-400">
         {label}
       </div>
-      <div className={`mt-1.5 text-xl font-extrabold ${color ?? "text-white"}`}>
+      <div className={`mt-1.5 text-lg font-extrabold ${valueClass ?? "text-white"}`}>
         {value}
       </div>
       {sub && <div className="mt-1 text-[9.5px] text-zinc-600">{sub}</div>}
+    </div>
+  );
+}
+
+// The By-Season header (most-recent-left selector, capped at 3 with a ⋯ dropdown
+// for older years) and the selected season's record + PF/PA panel.
+function SeasonSection({ seasons }: { seasons: SeasonLine[] }) {
+  const played = (s: SeasonLine) => s.regW + s.regL + s.poW + s.poL > 0;
+  const firstPlayed = seasons.findIndex(played);
+  const [sel, setSel] = useState(
+    seasons[firstPlayed >= 0 ? firstPlayed : 0]?.season ?? ""
+  );
+  const [menuOpen, setMenuOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [menuOpen]);
+
+  const selected = seasons.find((s) => s.season === sel) ?? seasons[0];
+  const primary = seasons.slice(0, 2);
+  const rest = seasons.slice(2);
+  const selInRest = rest.some((s) => s.season === sel);
+  const third = selInRest ? seasons.find((s) => s.season === sel) : rest[0];
+  const visible = [...primary, ...(third ? [third] : [])];
+  const hasOverflow = rest.length > 1;
+
+  return (
+    <div>
+      <div className="mb-3 flex items-center gap-2.5">
+        <span className="shrink-0 text-xs font-bold uppercase tracking-widest text-zinc-200">
+          By Season
+        </span>
+        <span className="h-px flex-1 bg-zinc-800" />
+        <div ref={wrapRef} className="relative flex shrink-0 items-center gap-1.5">
+          {visible.map((s, i) => {
+            const isLast = i === visible.length - 1;
+            const on = s.season === sel;
+            return (
+              <button
+                key={s.season}
+                onClick={() => setSel(s.season)}
+                className={[
+                  "rounded-full border px-3 py-1 text-xs font-bold transition-colors",
+                  on
+                    ? "border-emerald-800 bg-emerald-950/60 text-emerald-300"
+                    : "border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-zinc-200",
+                ].join(" ")}
+              >
+                {s.season}
+                {isLast && hasOverflow && (
+                  <span
+                    role="button"
+                    aria-label="Older seasons"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMenuOpen((o) => !o);
+                    }}
+                    className="ml-1.5 text-zinc-500 hover:text-zinc-300"
+                  >
+                    ⋯
+                  </span>
+                )}
+              </button>
+            );
+          })}
+          {menuOpen && (
+            <div className="absolute right-0 top-full z-20 mt-1.5 max-h-56 min-w-[86px] overflow-auto rounded-xl border border-zinc-700 bg-zinc-900 p-1 shadow-xl">
+              {rest.map((s) => (
+                <button
+                  key={s.season}
+                  onClick={() => {
+                    setSel(s.season);
+                    setMenuOpen(false);
+                  }}
+                  className={`block w-full rounded-lg px-3 py-1.5 text-left text-xs font-semibold ${
+                    s.season === sel
+                      ? "text-emerald-300"
+                      : "text-zinc-300 hover:bg-zinc-800"
+                  }`}
+                >
+                  {s.season}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {selected && (
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            <Tile label="Regular Season" value={`${selected.regW}-${selected.regL}`} />
+            <Tile label="Playoffs" value={`${selected.poW}-${selected.poL}`} />
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <Tile
+              label="Points For"
+              value={selected.pfRank ? ordinal(selected.pfRank) : "—"}
+              valueClass={
+                selected.pfRank && selected.pfRank <= 3
+                  ? "text-emerald-400"
+                  : undefined
+              }
+              sub={
+                selected.pf
+                  ? `${Math.round(selected.pf).toLocaleString()} pts`
+                  : undefined
+              }
+            />
+            <Tile
+              label="Points Against"
+              value={selected.paRank ? ordinal(selected.paRank) : "—"}
+              sub={
+                selected.pa
+                  ? `${Math.round(selected.pa).toLocaleString()} pts`
+                  : undefined
+              }
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 }
