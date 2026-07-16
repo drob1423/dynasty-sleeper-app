@@ -804,14 +804,15 @@ export async function getPlayoffResults(
     if (t2 !== null) ensure(t2).inConsolation = true;
   }
 
-  // Full final placement. Sleeper marks each placement game with `p` = the
-  // place its winner earns (loser gets p+1). The championship bracket's `p`s are
-  // absolute from the top (p=1 → 1st/2nd, p=3 → 3rd/4th, …). The consolation
-  // bracket fills the places BELOW the championship side; rather than trust
-  // whether Sleeper numbers it from 1 or absolutely, we order its placement
-  // games by `p` and slot the pairs in right after the last championship place.
-  // Games with no winner yet (unplayed) are skipped, so an in-progress season
-  // yields no finishes.
+  // Final placement from the CHAMPIONSHIP bracket only. Sleeper marks each
+  // placement game with `p` = the place its winner earns (loser gets p+1), so
+  // p=1 → 1st/2nd, p=3 → 3rd/4th, and so on. Teams the championship bracket
+  // doesn't place (the non-playoff teams) are left null here and ranked by
+  // regular-season record by the caller. That matches leagues that seed the
+  // bottom of the final standings by record rather than a consolation/toilet
+  // bowl — the common case, and how this league does it. Playoff formats vary
+  // per league, so this is a sane default, not a universal rule. Unplayed games
+  // (no winner yet) are skipped, so an in-progress season yields no finishes.
   const resolveLoser = (
     m: { t1?: unknown; t2?: unknown; w?: unknown; l?: unknown },
     w: number | null
@@ -822,26 +823,12 @@ export async function getPlayoffResults(
     if (w !== null && t1 !== null && t2 !== null) return w === t1 ? t2 : t1;
     return null;
   };
-
-  let lastTop = 0;
   for (const m of winners) {
     if (typeof m.p !== "number") continue;
     const w = typeof m.w === "number" ? m.w : null;
     const l = resolveLoser(m, w);
     if (w !== null) ensure(w).finish = m.p;
     if (l !== null) ensure(l).finish = m.p + 1;
-    lastTop = Math.max(lastTop, m.p + 1);
-  }
-
-  const consolation = losers
-    .filter((m) => typeof m.p === "number" && typeof m.w === "number")
-    .sort((a, b) => a.p - b.p);
-  let next = lastTop;
-  for (const m of consolation) {
-    const w = m.w as number;
-    const l = resolveLoser(m, w);
-    ensure(w).finish = ++next;
-    if (l !== null) ensure(l).finish = ++next;
   }
 
   return map;
