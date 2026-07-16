@@ -62,7 +62,7 @@ export function OverviewTab({
 
   return (
     <div className="space-y-6">
-      <TeamStatsBody t={team} hideH2H />
+      <TeamStatsBody t={team} />
 
       {viewingOther && (
         <MatchupLog handle={team.handle} log={log} />

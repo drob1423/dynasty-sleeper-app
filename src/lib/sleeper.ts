@@ -775,13 +775,15 @@ export async function getPlayoffResults(
       l = w === t1 ? t2 : t1;
     }
 
-    // A game counts toward the playoff record if it's a regular round (no `p`)
-    // OR it decides a medal — the championship final (`p === 1`) or the
-    // 3rd-place game (`p === 3`). Games for 5th/7th/etc. (`p >= 5`) are played
-    // after a team is out of medal contention, so they don't count.
-    const decidesMedal = m.p === 1 || m.p === 3;
-    const countsForRecord = typeof m.p !== "number" || decidesMedal;
-    if (countsForRecord) {
+    // A game counts toward the playoff record only if it's on the path to the
+    // championship: a real head-to-head in a regular bracket round (no `p`) or
+    // the championship final (`p === 1`). The 3rd-place game (`p === 3`) and any
+    // 5th/7th/etc. consolation games are played after a team is out of title
+    // contention, so they don't count. A bye is not a game (only one team on the
+    // slate), so it can't be a win either — require both teams present.
+    const bothTeams = t1 !== null && t2 !== null;
+    const onChampPath = typeof m.p !== "number" || m.p === 1;
+    if (bothTeams && onChampPath) {
       if (w !== null) ensure(w).playoffWins += 1;
       if (l !== null) ensure(l).playoffLosses += 1;
     }
