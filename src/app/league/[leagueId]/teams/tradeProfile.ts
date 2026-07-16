@@ -114,8 +114,9 @@ function profileForTeam(
     }
   }
 
+  // Group needs by position (QB1, QB2 together), then by tier within a position.
   needs.sort(
-    (a, b) => a.tier - b.tier || POS_ORDER.indexOf(a.pos) - POS_ORDER.indexOf(b.pos)
+    (a, b) => POS_ORDER.indexOf(a.pos) - POS_ORDER.indexOf(b.pos) || a.tier - b.tier
   );
 
   // A position can't be both a need and a strength. Needs are absolute (no elite
