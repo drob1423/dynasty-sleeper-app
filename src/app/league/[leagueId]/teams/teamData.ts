@@ -54,6 +54,7 @@ export type TeamCard = {
   rings: number; // championships (1st-place finishes)
   silver: number; // 2nd-place finishes
   bronze: number; // 3rd-place finishes
+  medalSeasons: { g: string[]; s: string[]; b: string[] }; // years each medal happened
   bestFinish: number | null; // best final placement across the dynasty (1 = title)
   bestFinishSeasons: string[]; // every year that best finish happened
   leagueSize: number; // teams in the league (denominator for a finish)
@@ -63,7 +64,11 @@ export type TeamCard = {
 // the My Team tab so the stat logic lives in one place.
 export async function loadTeamCards(
   leagueId: string
-): Promise<{ cards: TeamCard[]; lastSeason: string | null }> {
+): Promise<{
+  cards: TeamCard[];
+  lastSeason: string | null;
+  currentSeason: string | null;
+}> {
   const [auth, currentFull, users, players, chain] = await Promise.all([
     supabase.auth.getUser(),
     getFullRosters(leagueId),
@@ -155,20 +160,31 @@ export async function loadTeamCards(
 
   // Tally podium finishes + meaningful playoff records across the dynasty.
   const medals = new Map<number, { g: number; s: number; b: number }>();
+  const medalYears = new Map<number, { g: string[]; s: string[]; b: string[] }>();
   const poRec = new Map<number, { w: number; l: number }>();
-  playoffsPerSeason.forEach((m) =>
+  playoffsPerSeason.forEach((m, i) => {
+    const season = playedOldestFirst[i]?.season ?? "";
     m.forEach((v, rid) => {
       const o = medals.get(rid) ?? { g: 0, s: 0, b: 0 };
-      if (v.place === 1) o.g += 1;
-      else if (v.place === 2) o.s += 1;
-      else if (v.place === 3) o.b += 1;
+      const y = medalYears.get(rid) ?? { g: [], s: [], b: [] };
+      if (v.place === 1) {
+        o.g += 1;
+        y.g.push(season);
+      } else if (v.place === 2) {
+        o.s += 1;
+        y.s.push(season);
+      } else if (v.place === 3) {
+        o.b += 1;
+        y.b.push(season);
+      }
       medals.set(rid, o);
+      medalYears.set(rid, y);
       const p = poRec.get(rid) ?? { w: 0, l: 0 };
       p.w += v.playoffWins;
       p.l += v.playoffLosses;
       poRec.set(rid, p);
-    })
-  );
+    });
+  });
 
   // Best final placement across the dynasty. The bracket gives finishes for the
   // teams it placed; any team a season didn't place (e.g. missed the playoffs
@@ -317,6 +333,7 @@ export async function loadTeamCards(
       rings: medals.get(r.roster_id)?.g ?? 0,
       silver: medals.get(r.roster_id)?.s ?? 0,
       bronze: medals.get(r.roster_id)?.b ?? 0,
+      medalSeasons: medalYears.get(r.roster_id) ?? { g: [], s: [], b: [] },
       bestFinish: bestFinish.get(r.roster_id)?.place ?? null,
       bestFinishSeasons: bestFinish.get(r.roster_id)?.seasons ?? [],
       leagueSize: currentFull.length,
@@ -324,5 +341,9 @@ export async function loadTeamCards(
     };
   });
 
-  return { cards, lastSeason: lastPlayed?.season ?? null };
+  return {
+    cards,
+    lastSeason: lastPlayed?.season ?? null,
+    currentSeason: currentLeague?.season ?? null,
+  };
 }
