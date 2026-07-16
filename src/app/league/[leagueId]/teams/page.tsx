@@ -15,7 +15,6 @@ export default function RivalsTab() {
 
   const [loading, setLoading] = useState(true);
   const [rivals, setRivals] = useState<TeamCard[]>([]);
-  const [lastSeason, setLastSeason] = useState<string | null>(null);
   const [currentSeason, setCurrentSeason] = useState<string | null>(null);
   const [members, setMembers] = useState({ on: 0, total: 0 });
   const [profiles, setProfiles] = useState<Map<number, TradeProfile>>(new Map());
@@ -23,17 +22,25 @@ export default function RivalsTab() {
   useEffect(() => {
     let alive = true;
     async function load() {
-      const { cards, lastSeason, currentSeason } = await loadTeamCards(leagueId);
+      const { cards, currentSeason } = await loadTeamCards(leagueId);
       if (!alive) return;
+      // Most decorated first: best final placement, then trophy counts, then
+      // last season's rank as a final tiebreak.
       const others = cards
         .filter((c) => !c.isMe)
-        .sort((a, b) => (a.lastRank ?? 99) - (b.lastRank ?? 99));
+        .sort(
+          (a, b) =>
+            (a.bestFinish ?? 999) - (b.bestFinish ?? 999) ||
+            b.rings - a.rings ||
+            b.silver - a.silver ||
+            b.bronze - a.bronze ||
+            (a.lastRank ?? 99) - (b.lastRank ?? 99)
+        );
       setRivals(others);
       setMembers({
         on: cards.filter((c) => c.isMember).length,
         total: cards.length,
       });
-      setLastSeason(lastSeason);
       setCurrentSeason(currentSeason);
       setLoading(false);
 
@@ -54,11 +61,7 @@ export default function RivalsTab() {
   return (
     <>
       <div className="mb-3 flex items-center justify-between">
-        {lastSeason ? (
-          <p className="text-xs text-zinc-500">Ranked by {lastSeason} finish</p>
-        ) : (
-          <span />
-        )}
+        <p className="text-xs text-zinc-500">Ranked by best finish</p>
         <p className="text-xs text-zinc-500">
           <span className="font-semibold text-emerald-400">{members.on}</span>{" "}
           of {members.total} managers on the app
