@@ -21,6 +21,7 @@ import {
 
 export type TeamCard = {
   rosterId: number;
+  ownerId: string | null; // Sleeper user id of the current owner
   teamName: string;
   handle: string;
   logo: string | null;
@@ -45,19 +46,33 @@ export type TeamCard = {
   faab: number | null;
   pf: number | null; // points for, last completed season
   pfRank: number | null; // rank by PF that season
+  pa: number | null; // points against, last completed season
+  paRank: number | null; // rank by PA that season (most points-against = 1st)
+  allTimePfRank: number | null; // all-time regular-season PF rank (most = 1st)
+  allTimePaRank: number | null; // all-time regular-season PA rank (most = 1st)
+  currentPfRank: number | null; // current-season PF rank (null until games play)
+  currentPaRank: number | null; // current-season PA rank (null until games play)
   luck: number | null; // actual − expected wins across the dynasty
   expWins: number | null; // expected wins (for the sub label)
   games: number | null; // total regular-season games (for expected record)
   rings: number; // championships (1st-place finishes)
   silver: number; // 2nd-place finishes
   bronze: number; // 3rd-place finishes
+  medalSeasons: { g: string[]; s: string[]; b: string[] }; // years each medal happened
+  bestFinish: number | null; // best final placement across the dynasty (1 = title)
+  bestFinishSeasons: string[]; // every year that best finish happened
+  leagueSize: number; // teams in the league (denominator for a finish)
 };
 
 // Load every team's scorecard data for a league. Shared by the Rivals tab and
 // the My Team tab so the stat logic lives in one place.
 export async function loadTeamCards(
   leagueId: string
-): Promise<{ cards: TeamCard[]; lastSeason: string | null }> {
+): Promise<{
+  cards: TeamCard[];
+  lastSeason: string | null;
+  currentSeason: string | null;
+}> {
   const [auth, currentFull, users, players, chain] = await Promise.all([
     supabase.auth.getUser(),
     getFullRosters(leagueId),
@@ -135,6 +150,42 @@ export async function loadTeamCards(
     })
   );
 
+  // All-time regular-season points for/against, summed across every season and
+  // ranked most-first (same convention as the standings: most PF is 1st; most
+  // PA is 1st — a can't-control bragging right). Sleeper's roster fpts are the
+  // regular-season totals.
+  const rankDesc = (m: Map<number, number>) => {
+    const out = new Map<number, number>();
+    [...m.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .forEach(([rid], i) => out.set(rid, i + 1));
+    return out;
+  };
+  const pfAll = new Map<number, number>();
+  const paAll = new Map<number, number>();
+  perSeasonRosters.forEach((rosters) =>
+    rosters.forEach((r) => {
+      pfAll.set(r.roster_id, (pfAll.get(r.roster_id) ?? 0) + r.fpts);
+      paAll.set(r.roster_id, (paAll.get(r.roster_id) ?? 0) + r.fpts_against);
+    })
+  );
+  const allTimePfRankMap = rankDesc(pfAll);
+  const allTimePaRankMap = rankDesc(paAll);
+
+  // Current season's PF/PA ranks — empty until the season actually kicks off.
+  const curRosters = perSeasonRosters[0] ?? [];
+  const curHasData = curRosters.some((r) => r.fpts > 0);
+  const curPfRankMap = new Map<number, number>();
+  const curPaRankMap = new Map<number, number>();
+  if (curHasData) {
+    [...curRosters]
+      .sort((a, b) => b.fpts - a.fpts)
+      .forEach((r, i) => curPfRankMap.set(r.roster_id, i + 1));
+    [...curRosters]
+      .sort((a, b) => b.fpts_against - a.fpts_against)
+      .forEach((r, i) => curPaRankMap.set(r.roster_id, i + 1));
+  }
+
   // Sum luck (actual vs all-play expected wins) across the dynasty.
   const luckAgg = new Map<number, { actual: number; expected: number; games: number }>();
   luckPerSeason.forEach((m) =>
@@ -149,29 +200,88 @@ export async function loadTeamCards(
 
   // Tally podium finishes + meaningful playoff records across the dynasty.
   const medals = new Map<number, { g: number; s: number; b: number }>();
+  const medalYears = new Map<number, { g: string[]; s: string[]; b: string[] }>();
   const poRec = new Map<number, { w: number; l: number }>();
-  playoffsPerSeason.forEach((m) =>
+  playoffsPerSeason.forEach((m, i) => {
+    const season = playedOldestFirst[i]?.season ?? "";
     m.forEach((v, rid) => {
       const o = medals.get(rid) ?? { g: 0, s: 0, b: 0 };
-      if (v.place === 1) o.g += 1;
-      else if (v.place === 2) o.s += 1;
-      else if (v.place === 3) o.b += 1;
+      const y = medalYears.get(rid) ?? { g: [], s: [], b: [] };
+      if (v.place === 1) {
+        o.g += 1;
+        y.g.push(season);
+      } else if (v.place === 2) {
+        o.s += 1;
+        y.s.push(season);
+      } else if (v.place === 3) {
+        o.b += 1;
+        y.b.push(season);
+      }
       medals.set(rid, o);
+      medalYears.set(rid, y);
       const p = poRec.get(rid) ?? { w: 0, l: 0 };
       p.w += v.playoffWins;
       p.l += v.playoffLosses;
       poRec.set(rid, p);
-    })
+    });
+  });
+
+  // Best final placement across the dynasty. The bracket gives finishes for the
+  // teams it placed; any team a season didn't place (e.g. missed the playoffs
+  // entirely) fills the remaining spots by that season's regular-season order,
+  // so every team gets a finish and "best" is the lowest number they've hit.
+  const rostersByLeagueId = new Map(
+    chain.map((s, i) => [s.league_id, perSeasonRosters[i]])
   );
+  const perSeasonRostersPlayed = playedOldestFirst.map(
+    (s) => rostersByLeagueId.get(s.league_id) ?? []
+  );
+  const bestFinish = new Map<number, { place: number; seasons: string[] }>();
+  playoffsPerSeason.forEach((pr, i) => {
+    const season = playedOldestFirst[i]?.season ?? "";
+    const seasonRosters = perSeasonRostersPlayed[i] ?? [];
+    const finishes = new Map<number, number>();
+    let maxPlaced = 0;
+    pr.forEach((v, rid) => {
+      if (v.finish != null) {
+        finishes.set(rid, v.finish);
+        maxPlaced = Math.max(maxPlaced, v.finish);
+      }
+    });
+    seasonRosters
+      .filter((r) => !finishes.has(r.roster_id))
+      .sort((a, b) => b.wins - a.wins || b.fpts - a.fpts)
+      .forEach((r, k) => finishes.set(r.roster_id, maxPlaced + k + 1));
+    // Track the best placement AND every season it happened (chronological,
+    // since we iterate oldest→newest): a better place resets the year list, a
+    // repeat of the best place appends its year.
+    finishes.forEach((place, rid) => {
+      const cur = bestFinish.get(rid);
+      if (!cur || place < cur.place) {
+        bestFinish.set(rid, { place, seasons: [season] });
+      } else if (place === cur.place) {
+        cur.seasons.push(season);
+      }
+    });
+  });
 
   // Last completed season: points for + rank by PF.
   const pfByRoster = new Map<number, number>();
   const pfRankByRoster = new Map<number, number>();
+  const paByRoster = new Map<number, number>();
+  const paRankByRoster = new Map<number, number>();
   if (lastPlayedIndex >= 0) {
-    perSeasonRosters[lastPlayedIndex].forEach((r) => pfByRoster.set(r.roster_id, r.fpts));
+    perSeasonRosters[lastPlayedIndex].forEach((r) => {
+      pfByRoster.set(r.roster_id, r.fpts);
+      paByRoster.set(r.roster_id, r.fpts_against);
+    });
     [...perSeasonRosters[lastPlayedIndex]]
       .sort((a, b) => b.fpts - a.fpts)
       .forEach((r, i) => pfRankByRoster.set(r.roster_id, i + 1));
+    // Most points-against ranks 1st (a bragging right — you can't control it).
+    [...perSeasonRosters[lastPlayedIndex]]
+      .sort((a, b) => b.fpts_against - a.fpts_against)
+      .forEach((r, i) => paRankByRoster.set(r.roster_id, i + 1));
   }
 
   // Sum trades + moves from the transaction log.
@@ -211,6 +321,7 @@ export async function loadTeamCards(
     void players; // player map reserved for future roster-value stats
     return {
       rosterId: r.roster_id,
+      ownerId: r.owner_id ?? null,
       teamName: u?.team_name || u?.display_name || "Unknown",
       handle: u?.display_name || "unknown",
       logo: u?.teamAvatar ?? null,
@@ -251,6 +362,12 @@ export async function loadTeamCards(
       moves: moves.get(r.roster_id) ?? 0,
       pf: pfByRoster.get(r.roster_id) ?? null,
       pfRank: pfRankByRoster.get(r.roster_id) ?? null,
+      pa: paByRoster.get(r.roster_id) ?? null,
+      paRank: paRankByRoster.get(r.roster_id) ?? null,
+      allTimePfRank: allTimePfRankMap.get(r.roster_id) ?? null,
+      allTimePaRank: allTimePaRankMap.get(r.roster_id) ?? null,
+      currentPfRank: curPfRankMap.get(r.roster_id) ?? null,
+      currentPaRank: curPaRankMap.get(r.roster_id) ?? null,
       luck: (() => {
         const l = luckAgg.get(r.roster_id);
         return l ? l.actual - l.expected : null;
@@ -260,9 +377,17 @@ export async function loadTeamCards(
       rings: medals.get(r.roster_id)?.g ?? 0,
       silver: medals.get(r.roster_id)?.s ?? 0,
       bronze: medals.get(r.roster_id)?.b ?? 0,
+      medalSeasons: medalYears.get(r.roster_id) ?? { g: [], s: [], b: [] },
+      bestFinish: bestFinish.get(r.roster_id)?.place ?? null,
+      bestFinishSeasons: bestFinish.get(r.roster_id)?.seasons ?? [],
+      leagueSize: currentFull.length,
       faab: faabBudget > 0 ? faabBudget - r.waiverBudgetUsed : null,
     };
   });
 
-  return { cards, lastSeason: lastPlayed?.season ?? null };
+  return {
+    cards,
+    lastSeason: lastPlayed?.season ?? null,
+    currentSeason: currentLeague?.season ?? null,
+  };
 }

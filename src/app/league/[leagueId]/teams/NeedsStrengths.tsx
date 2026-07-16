@@ -2,7 +2,6 @@
 // both the Rivals card and the My Team tab, so the two never drift apart.
 
 import { shortPos, type TradeProfile } from "./tradeProfile";
-import { ordinal } from "./TeamScoreCard";
 
 export function NeedsStrengths({
   profile,
@@ -25,7 +24,7 @@ export function NeedsStrengths({
       <ChipRow
         label="Strong"
         empty="No standout position"
-        chips={profile.strengths.map((s) => `${shortPos(s.pos)} ${ordinal(s.rank)}`)}
+        chips={profile.strengths.map((s) => shortPos(s.pos))}
         tone="strong"
       />
     </div>

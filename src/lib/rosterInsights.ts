@@ -399,8 +399,15 @@ function buildTrade(
           `'${yy} ${slotStr} → ${playerMap[slot.playerId]?.name ?? "pick"}`
         );
       } else if (slot?.playerId) {
-        // Drafted, but by someone else — receiver flipped this pick later.
-        received.push(`'${yy} ${slotStr} pick`);
+        // The receiver flipped this pick later; show what it became at the draft
+        // and who ended up making the selection.
+        const drafter = slot.pickedBy ? handleByOwner.get(slot.pickedBy) : null;
+        const name = playerMap[slot.playerId]?.name ?? "pick";
+        received.push(
+          drafter
+            ? `'${yy} ${slotStr} → ${name} (drafted by @${drafter})`
+            : `'${yy} ${slotStr} → ${name}`
+        );
       } else if (slot) {
         received.push(`'${yy} ${slotStr} (TBD)`); // order set, not drafted yet
       } else {

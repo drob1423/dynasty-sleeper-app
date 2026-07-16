@@ -725,6 +725,7 @@ export type PlayoffResult = {
   playoffWins: number; // wins in the championship bracket
   playoffLosses: number; // losses in the championship bracket
   place: number | null; // 1, 2, or 3 if they medaled; else null
+  finish: number | null; // full final placement (1 = champion … N = last)
 };
 
 async function fetchBracket(leagueId: string, which: "winners" | "losers") {
@@ -753,6 +754,7 @@ export async function getPlayoffResults(
         playoffWins: 0,
         playoffLosses: 0,
         place: null,
+        finish: null,
       };
       map.set(rid, e);
     }
@@ -802,6 +804,33 @@ export async function getPlayoffResults(
     if (t2 !== null) ensure(t2).inConsolation = true;
   }
 
+  // Final placement from the CHAMPIONSHIP bracket only. Sleeper marks each
+  // placement game with `p` = the place its winner earns (loser gets p+1), so
+  // p=1 → 1st/2nd, p=3 → 3rd/4th, and so on. Teams the championship bracket
+  // doesn't place (the non-playoff teams) are left null here and ranked by
+  // regular-season record by the caller. That matches leagues that seed the
+  // bottom of the final standings by record rather than a consolation/toilet
+  // bowl — the common case, and how this league does it. Playoff formats vary
+  // per league, so this is a sane default, not a universal rule. Unplayed games
+  // (no winner yet) are skipped, so an in-progress season yields no finishes.
+  const resolveLoser = (
+    m: { t1?: unknown; t2?: unknown; w?: unknown; l?: unknown },
+    w: number | null
+  ): number | null => {
+    if (typeof m.l === "number") return m.l;
+    const t1 = typeof m.t1 === "number" ? m.t1 : null;
+    const t2 = typeof m.t2 === "number" ? m.t2 : null;
+    if (w !== null && t1 !== null && t2 !== null) return w === t1 ? t2 : t1;
+    return null;
+  };
+  for (const m of winners) {
+    if (typeof m.p !== "number") continue;
+    const w = typeof m.w === "number" ? m.w : null;
+    const l = resolveLoser(m, w);
+    if (w !== null) ensure(w).finish = m.p;
+    if (l !== null) ensure(l).finish = m.p + 1;
+  }
+
   return map;
 }
 
@@ -829,6 +858,7 @@ export function enrichRows(
       playoffWins: p?.playoffWins ?? 0,
       playoffLosses: p?.playoffLosses ?? 0,
       place: p?.place ?? null,
+      finish: p?.finish ?? null,
     };
   });
 }

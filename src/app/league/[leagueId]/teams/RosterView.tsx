@@ -108,14 +108,22 @@ export function RosterView({
     return <p className="py-6 text-center text-zinc-400">Loading roster…</p>;
   }
 
+  // Within each position, order by PPG (best first). Uses the synced-engine mean
+  // where available (matches the rank shown), falling back to the roster
+  // pipeline's PPG for K/DEF; unranked players sink to the bottom.
+  const ppgOf = (p: RosterPlayer) =>
+    roomRank.get(p.id)?.mean ?? insights?.[p.id]?.ppg ?? -1;
+
   const groups = [...POS_ORDER, "Other"]
     .map((pos) => ({
       pos,
-      players: players.filter((p) =>
-        pos === "Other"
-          ? !POS_ORDER.includes(p.info.position ?? "?")
-          : p.info.position === pos
-      ),
+      players: players
+        .filter((p) =>
+          pos === "Other"
+            ? !POS_ORDER.includes(p.info.position ?? "?")
+            : p.info.position === pos
+        )
+        .sort((a, b) => ppgOf(b) - ppgOf(a)),
     }))
     .filter((g) => g.players.length > 0);
 

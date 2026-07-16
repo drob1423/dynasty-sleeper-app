@@ -84,16 +84,14 @@ export function TeamIdentity({ t }: { t: TeamCard }) {
         </div>
         <div className="truncate text-xs text-zinc-500">
           {t.teamName}
-          {t.newOwner && t.tookOverFrom ? (
+          {t.newOwner && t.tookOverFrom && (
             <> · took over from @{t.tookOverFrom}</>
-          ) : (
-            t.lastRank &&
-            t.lastSeason && <> · {t.lastSeason} {ordinal(t.lastRank)}</>
           )}
         </div>
       </div>
-      {/* Activity pills — trades, moves, FAAB */}
-      <div className="flex shrink-0 items-center gap-2">
+      {/* Activity pills — trades, moves, FAAB. Full-width own row on mobile so
+          they never collide with the name/badges; inline on desktop. */}
+      <div className="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto">
         <ActivityPill label="Trades" value={`${t.trades}`} />
         <ActivityPill label="Moves" value={`${t.moves}`} />
         <ActivityPill label="FAAB" value={t.faab != null ? `$${t.faab}` : "—"} />
@@ -116,9 +114,11 @@ function ActivityPill({ label, value }: { label: string; value: string }) {
 export function TeamStatsBody({
   t,
   extra,
+  hideH2H,
 }: {
   t: TeamCard;
   extra?: React.ReactNode;
+  hideH2H?: boolean; // Overview tab shows a fuller H2H log below, so it hides this strip
 }) {
   // Record over the last 5 regular-season games.
   const l5w = t.form.filter((r) => r === "W").length;
@@ -128,27 +128,63 @@ export function TeamStatsBody({
   const allW = t.dynastyW + t.playoffW;
   const allL = t.dynastyL + t.playoffL;
 
+  // Best career finish = the actual numerical placement (1st … last), with the
+  // year it happened beneath it.
+  const finishColor =
+    t.bestFinish === 1
+      ? "text-amber-400"
+      : t.bestFinish === 2
+      ? "text-zinc-300"
+      : t.bestFinish === 3
+      ? "text-amber-600"
+      : undefined;
+  const finishMedal =
+    t.bestFinish === 1
+      ? " 🥇"
+      : t.bestFinish === 2
+      ? " 🥈"
+      : t.bestFinish === 3
+      ? " 🥉"
+      : "";
+  // Career hardware tally for the all-time hero (only medals they actually have).
+  const trophyCase = [
+    t.rings > 0 ? `🥇${t.rings}` : null,
+    t.silver > 0 ? `🥈${t.silver}` : null,
+    t.bronze > 0 ? `🥉${t.bronze}` : null,
+  ].filter(Boolean);
+
   return (
     <>
       {/* Stats + radar side by side on wide screens */}
       <div className="mt-4 flex flex-col gap-2 md:flex-row md:items-stretch md:gap-3">
         <div className="flex flex-1 flex-col gap-2">
-          {/* Record hero — all-time up front, reg/playoff split alongside */}
-          <div className="flex items-center justify-between gap-3 rounded-xl bg-zinc-950/40 px-4 py-3">
+          {/* Record hero — all-time up front (accented), reg/playoff alongside */}
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-900/40 bg-gradient-to-br from-emerald-500/[0.10] to-transparent px-4 py-3.5">
             <div>
-              <div className="text-[10px] uppercase tracking-wide text-zinc-500">
-                All-Time
+              <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/90">
+                All-Time Record
               </div>
-              <div className="mt-0.5 flex items-baseline gap-2">
-                <span className="text-2xl font-bold leading-none text-white">
+              <div className="mt-1 flex items-baseline gap-2">
+                <span className="whitespace-nowrap text-3xl font-extrabold leading-none tracking-tight text-white">
                   {allW}-{allL}
                 </span>
-                <span className="text-sm font-semibold text-zinc-500">
+                <span
+                  className={`text-sm font-bold ${
+                    allW >= allL ? "text-emerald-400" : "text-zinc-400"
+                  }`}
+                >
                   {winPct(allW, allL)}
                 </span>
               </div>
+              {trophyCase.length > 0 && (
+                <div className="mt-2 flex items-center gap-2.5 text-xs font-semibold text-zinc-300">
+                  {trophyCase.map((m) => (
+                    <span key={m}>{m}</span>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="flex gap-1.5">
+            <div className="flex flex-wrap justify-end gap-2">
               <RecPill
                 label="Reg"
                 rec={`${t.dynastyW}-${t.dynastyL}`}
@@ -159,11 +195,17 @@ export function TeamStatsBody({
                 rec={`${t.playoffW}-${t.playoffL}`}
                 pct={winPct(t.playoffW, t.playoffL)}
               />
+              <RecPill
+                label="Best"
+                rec={t.bestFinish ? `${ordinal(t.bestFinish)}${finishMedal}` : "—"}
+                pct={t.bestFinishSeasons.join(", ")}
+                valueClass={finishColor}
+              />
             </div>
           </div>
 
-          {/* Uniform stat grid */}
-          <div className="grid flex-1 grid-cols-3 content-center gap-y-3 rounded-xl bg-zinc-950/40 py-3">
+          {/* Stat tiles — each its own card so they read as distinct stats */}
+          <div className="grid flex-1 grid-cols-3 gap-2">
             <BigStat label="This Year" value={`${t.currentW}-${t.currentL}`} />
             <BigStat
               label="Streak"
@@ -198,6 +240,15 @@ export function TeamStatsBody({
               color={t.pfRank && t.pfRank <= 3 ? "text-emerald-400" : undefined}
             />
             <BigStat
+              label="Points Against"
+              value={t.paRank ? ordinal(t.paRank) : "—"}
+              sub={
+                t.pa != null
+                  ? `${Math.round(t.pa).toLocaleString()} pts`
+                  : undefined
+              }
+            />
+            <BigStat
               label="Luck"
               value={
                 t.luck != null
@@ -219,20 +270,15 @@ export function TeamStatsBody({
                   : undefined
               }
             />
-            <BigStat
-              label="Titles"
-              value={t.rings > 0 ? `🏆 ${t.rings}` : "—"}
-              color={t.rings > 0 ? "text-amber-400" : undefined}
-              sub={t.silver || t.bronze ? `${t.silver}🥈 ${t.bronze}🥉` : undefined}
-            />
           </div>
         </div>
         {/* Positional strength radar (My Team) — beside the stats */}
         {extra && <div className="shrink-0 md:w-[300px]">{extra}</div>}
       </div>
 
-      {/* Your head-to-head vs this team (hidden on your own card) */}
-      <H2HStrip rec={t.h2h} />
+      {/* Your head-to-head vs this team (hidden on your own card, and on the
+          Overview tab where a fuller game-by-game log is shown instead) */}
+      {!hideH2H && <H2HStrip rec={t.h2h} />}
     </>
   );
 }
@@ -298,12 +344,24 @@ function H2HStrip({ rec }: { rec: H2HRecord | null }) {
   );
 }
 
-function RecPill({ label, rec, pct }: { label: string; rec: string; pct: string }) {
+function RecPill({
+  label,
+  rec,
+  pct,
+  valueClass,
+}: {
+  label: string;
+  rec: string;
+  pct: string;
+  valueClass?: string;
+}) {
   return (
-    <div className="rounded-lg bg-zinc-900 px-2.5 py-1 text-center">
-      <div className="text-[9px] uppercase tracking-wide text-zinc-600">{label}</div>
-      <div className="text-xs font-semibold text-zinc-200">{rec}</div>
-      <div className="text-[9px] text-zinc-500">{pct}</div>
+    <div className="min-w-[58px] rounded-xl border border-zinc-700/50 bg-zinc-950/60 px-2.5 py-1.5 text-center">
+      <div className="text-[9px] font-bold uppercase tracking-wide text-zinc-500">{label}</div>
+      <div className={`mt-0.5 whitespace-nowrap text-sm font-extrabold ${valueClass ?? "text-zinc-100"}`}>
+        {rec}
+      </div>
+      <div className="text-[9px] text-zinc-600">{pct}</div>
     </div>
   );
 }
@@ -320,14 +378,14 @@ function BigStat({
   sub?: string;
 }) {
   return (
-    <div className="px-1 text-center">
-      <div className="text-[10px] uppercase tracking-wide text-zinc-500">
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900 px-2 py-2.5 text-center">
+      <div className="text-[9.5px] font-bold uppercase tracking-wide text-zinc-400">
         {label}
       </div>
-      <div className={`mt-0.5 text-base font-bold ${color ?? "text-white"}`}>
+      <div className={`mt-1.5 text-xl font-extrabold ${color ?? "text-white"}`}>
         {value}
       </div>
-      {sub && <div className="text-[10px] text-zinc-600">{sub}</div>}
+      {sub && <div className="mt-1 text-[9.5px] text-zinc-600">{sub}</div>}
     </div>
   );
 }

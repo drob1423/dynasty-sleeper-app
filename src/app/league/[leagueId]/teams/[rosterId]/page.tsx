@@ -5,7 +5,8 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getRoomStrength, type PositionRoom } from "@/lib/roomStrength";
 import { loadTeamCards, type TeamCard } from "../teamData";
-import { TeamIdentity, TeamStatsBody, ordinal } from "../TeamScoreCard";
+import { TeamIdentity, ordinal } from "../TeamScoreCard";
+import { OverviewTab } from "../OverviewTab";
 import { RosterView } from "../RosterView";
 import { computeTradeProfiles } from "../tradeProfile";
 
@@ -18,6 +19,7 @@ export default function TeamDetail() {
 
   const [tab, setTab] = useState<Tab>("overview");
   const [card, setCard] = useState<TeamCard | null>(null);
+  const [meRosterId, setMeRosterId] = useState<number | null>(null);
   const [rooms, setRooms] = useState<PositionRoom[]>([]);
 
   useEffect(() => {
@@ -29,6 +31,7 @@ export default function TeamDetail() {
       ]);
       if (!alive) return;
       setCard(cards.find((c) => c.rosterId === rosterId) ?? null);
+      setMeRosterId(cards.find((c) => c.isMe)?.rosterId ?? null);
       setRooms(roomRes.rooms);
     }
     load();
@@ -45,11 +48,15 @@ export default function TeamDetail() {
 
   return (
     <div>
-      <Link href="../teams" className="text-sm text-zinc-500 hover:text-zinc-300">
-        ← All rivals
+      <Link
+        href="../teams"
+        className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-700 bg-emerald-950/40 px-4 py-2.5 text-sm font-semibold text-emerald-300 shadow-sm transition-colors hover:border-emerald-500 hover:bg-emerald-900/40 hover:text-emerald-200 active:scale-[0.98]"
+      >
+        <span aria-hidden className="text-lg leading-none">←</span>
+        All rivals
       </Link>
 
-      <div className="mt-3">
+      <div className="mt-1">
         {card ? (
           <TeamIdentity t={card} />
         ) : (
@@ -82,7 +89,7 @@ export default function TeamDetail() {
       <div className="mt-5">
         {tab === "overview" &&
           (card ? (
-            <TeamStatsBody t={card} />
+            <OverviewTab leagueId={leagueId} team={card} meRosterId={meRosterId} />
           ) : (
             <p className="py-8 text-center text-sm text-zinc-500">Loading…</p>
           ))}
