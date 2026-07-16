@@ -84,11 +84,8 @@ export function TeamIdentity({ t }: { t: TeamCard }) {
         </div>
         <div className="truncate text-xs text-zinc-500">
           {t.teamName}
-          {t.newOwner && t.tookOverFrom ? (
+          {t.newOwner && t.tookOverFrom && (
             <> · took over from @{t.tookOverFrom}</>
-          ) : (
-            t.lastRank &&
-            t.lastSeason && <> · {t.lastSeason} {ordinal(t.lastRank)}</>
           )}
         </div>
       </div>
