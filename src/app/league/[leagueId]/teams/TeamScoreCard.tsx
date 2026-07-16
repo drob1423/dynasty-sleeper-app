@@ -46,10 +46,11 @@ export function TeamScoreCard({
   );
 }
 
-// The identity header: avatar, handle, badges, and a subtitle line.
+// The identity header: avatar, handle, badges, a subtitle line, and FAAB —
+// the remaining waiver budget — set off to the right by a divider.
 export function TeamIdentity({ t }: { t: TeamCard }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2.5">
+    <div className="flex items-center gap-3">
       <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-800">
         {t.logo && (
           <img
@@ -89,21 +90,24 @@ export function TeamIdentity({ t }: { t: TeamCard }) {
           )}
         </div>
       </div>
-      {/* Activity pills — trades, moves, FAAB. Full-width own row on mobile so
-          they never collide with the name/badges; inline on desktop. */}
-      <div className="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto">
-        <ActivityPill label="Trades" value={`${t.trades}`} />
-        <ActivityPill label="Moves" value={`${t.moves}`} />
-        <ActivityPill label="FAAB" value={t.faab != null ? `$${t.faab}` : "—"} />
+      {/* FAAB — remaining waiver budget, divided off to the right of the name. */}
+      <div className="shrink-0 border-l border-zinc-800 pl-3 text-right leading-tight">
+        <div className="text-[9px] font-bold uppercase tracking-wider text-zinc-500">
+          FAAB
+        </div>
+        <div className="text-base font-bold text-zinc-100">
+          {t.faab != null ? `$${t.faab}` : "—"}
+        </div>
       </div>
     </div>
   );
 }
 
+// A compact activity pill — trades/moves, tucked beside the all-time record.
 function ActivityPill({ label, value }: { label: string; value: string }) {
   return (
-    <span className="rounded-full bg-zinc-800/80 px-3.5 py-1.5 text-[13px] text-zinc-400">
-      {label} <span className="font-semibold text-zinc-100">{value}</span>
+    <span className="whitespace-nowrap rounded-full bg-black/25 px-3 py-1 text-xs text-emerald-200/60">
+      {label} <span className="font-bold text-white">{value}</span>
     </span>
   );
 }
@@ -158,28 +162,37 @@ export function TeamStatsBody({
     <div className="mt-4 space-y-5">
       {/* ALL-TIME — everything all-time grouped in one pill */}
       <div className="rounded-2xl border border-emerald-900/40 bg-gradient-to-br from-emerald-500/[0.10] to-transparent px-4 pb-3.5 pt-3.5">
-        <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/90">
-          All-Time Record
-        </div>
-        <div className="mt-1 flex items-baseline gap-2">
-          <span className="whitespace-nowrap text-3xl font-extrabold leading-none tracking-tight text-white">
-            {allW}-{allL}
-          </span>
-          <span
-            className={`text-sm font-bold ${
-              allW >= allL ? "text-emerald-400" : "text-zinc-400"
-            }`}
-          >
-            {winPct(allW, allL)}
-          </span>
-        </div>
-        {trophyCase.length > 0 && (
-          <div className="mt-2 flex items-center gap-2.5 text-xs font-semibold text-zinc-300">
-            {trophyCase.map((m) => (
-              <span key={m}>{m}</span>
-            ))}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/90">
+              All-Time Record
+            </div>
+            <div className="mt-1 flex items-baseline gap-2">
+              <span className="whitespace-nowrap text-3xl font-extrabold leading-none tracking-tight text-white">
+                {allW}-{allL}
+              </span>
+              <span
+                className={`text-sm font-bold ${
+                  allW >= allL ? "text-emerald-400" : "text-zinc-400"
+                }`}
+              >
+                {winPct(allW, allL)}
+              </span>
+            </div>
+            {trophyCase.length > 0 && (
+              <div className="mt-2 flex items-center gap-2.5 text-xs font-semibold text-zinc-300">
+                {trophyCase.map((m) => (
+                  <span key={m}>{m}</span>
+                ))}
+              </div>
+            )}
           </div>
-        )}
+          {/* Transactions — trades & moves — filling the space beside the record. */}
+          <div className="flex shrink-0 flex-col items-end gap-1.5">
+            <ActivityPill label="Trades" value={`${t.trades}`} />
+            <ActivityPill label="Moves" value={`${t.moves}`} />
+          </div>
+        </div>
         <div className="mt-3.5 grid grid-cols-3 gap-2 border-t border-emerald-900/40 pt-3.5">
           <InnerTile
             label="Reg Season"
