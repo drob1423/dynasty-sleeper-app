@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getRoomStrength } from "@/lib/roomStrength";
+import { ordinal } from "../teams/TeamScoreCard";
 
 type Row = { pos: string; label: string; st: number | null; bn: number | null; total: number };
 
@@ -10,6 +11,7 @@ export function TeamStrengthPanel({ leagueId }: { leagueId: string }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [overall, setOverall] = useState<{ rank: number; total: number } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [hover, setHover] = useState<number | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -69,6 +71,14 @@ export function TeamStrengthPanel({ leagueId }: { leagueId: string }) {
     return [cx + v * rr * Math.cos(a), cy + v * rr * Math.sin(a)];
   };
   const strength = (rank: number | null, total: number) => (rank ? (total - rank + 1) / total : 0);
+  // Ordinal rank text (e.g. "3rd of 10") and a strength-based color for the tooltip.
+  const rankText = (rank: number | null, total: number) =>
+    rank ? `${ordinal(rank)} of ${total}` : "—";
+  const rankTone = (rank: number | null, total: number) => {
+    if (!rank) return "text-zinc-500";
+    const s = (total - rank + 1) / total;
+    return s >= 0.66 ? "text-emerald-400" : s <= 0.34 ? "text-red-400" : "text-zinc-300";
+  };
   const poly = (vals: number[]) =>
     vals.map((v, i) => pt(v, i).map((x) => x.toFixed(1)).join(",")).join(" ");
   const stVals = rows.map((r) => strength(r.st, r.total));
@@ -88,42 +98,96 @@ export function TeamStrengthPanel({ leagueId }: { leagueId: string }) {
         )}
       </div>
 
-      <svg viewBox="0 0 280 196" className="mx-auto block w-full max-w-[320px]">
-        {[0.25, 0.5, 0.75, 1].map((lv, k) => (
-          <polygon key={k} points={poly(rows.map(() => lv))} fill="none" stroke="#27272a" strokeWidth="1" />
-        ))}
-        {rows.map((_, i) => {
-          const [x, y] = pt(1, i);
-          return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke="#27272a" strokeWidth="1" />;
-        })}
-        {/* bench (dashed) */}
-        <polygon points={poly(bnVals)} fill="none" stroke="#38bdf8" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.85" />
-        {bnVals.map((v, i) => {
-          const [x, y] = pt(v, i);
-          return <circle key={i} cx={x} cy={y} r="2" fill="#38bdf8" opacity="0.85" />;
-        })}
-        {/* starters (filled) */}
-        <polygon points={poly(stVals)} fill="rgba(52,211,153,0.18)" stroke="#34d399" strokeWidth="2" />
-        {stVals.map((v, i) => {
-          const [x, y] = pt(v, i);
+      <div className="relative mx-auto w-full max-w-[320px]">
+        <svg viewBox="0 0 280 196" className="block w-full">
+          {[0.25, 0.5, 0.75, 1].map((lv, k) => (
+            <polygon key={k} points={poly(rows.map(() => lv))} fill="none" stroke="#27272a" strokeWidth="1" />
+          ))}
+          {rows.map((_, i) => {
+            const [x, y] = pt(1, i);
+            return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke="#27272a" strokeWidth="1" />;
+          })}
+          {/* bench (dashed) */}
+          <polygon points={poly(bnVals)} fill="none" stroke="#38bdf8" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.85" />
+          {bnVals.map((v, i) => {
+            const [x, y] = pt(v, i);
+            return <circle key={i} cx={x} cy={y} r="2" fill="#38bdf8" opacity="0.85" />;
+          })}
+          {/* starters (filled) */}
+          <polygon points={poly(stVals)} fill="rgba(52,211,153,0.18)" stroke="#34d399" strokeWidth="2" />
+          {stVals.map((v, i) => {
+            const [x, y] = pt(v, i);
+            return (
+              <circle
+                key={i}
+                cx={x}
+                cy={y}
+                r={hover === i ? 4.5 : 3}
+                fill="#34d399"
+                className="transition-all"
+              />
+            );
+          })}
+          {/* axis labels */}
+          {rows.map((r, i) => {
+            const [x, y] = pt(1, i, R * 1.36);
+            const c = Math.cos(angle(i));
+            const anchor = c > 0.3 ? "start" : c < -0.3 ? "end" : "middle";
+            return (
+              <text key={i} x={x} y={y + 3.5} textAnchor={anchor} fill="#a1a1aa" fontSize="11" fontWeight="600">
+                {r.pos}
+              </text>
+            );
+          })}
+          {/* invisible hit targets — hover/tap a vertex to pop its strength */}
+          {rows.map((_, i) => {
+            const [x, y] = pt(stVals[i], i);
+            return (
+              <circle
+                key={`hit${i}`}
+                cx={x}
+                cy={y}
+                r="14"
+                fill="transparent"
+                className="cursor-pointer"
+                onMouseEnter={() => setHover(i)}
+                onMouseLeave={() => setHover(null)}
+                onClick={() => setHover((h) => (h === i ? null : i))}
+              />
+            );
+          })}
+        </svg>
+
+        {hover != null && (() => {
+          const r = rows[hover];
+          const [px, py] = pt(stVals[hover], hover);
+          const below = py < 52; // flip under the point when near the top
           return (
-            <circle key={i} cx={x} cy={y} r="3" fill="#34d399">
-              <title>{`${rows[i].label} — starters #${rows[i].st ?? "—"}, bench #${rows[i].bn ?? "—"}`}</title>
-            </circle>
+            <div
+              className="pointer-events-none absolute z-10 -translate-x-1/2 rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 shadow-lg"
+              style={{
+                left: `${(px / 280) * 100}%`,
+                top: `${(py / 196) * 100}%`,
+                transform: below
+                  ? "translate(-50%, 12px)"
+                  : "translate(-50%, calc(-100% - 12px))",
+              }}
+            >
+              <div className="whitespace-nowrap text-[11px] font-semibold text-white">
+                {r.label}
+              </div>
+              <div className="mt-0.5 flex items-center gap-3 whitespace-nowrap text-[10px]">
+                <span className={rankTone(r.st, r.total)}>
+                  <span className="text-zinc-500">Starters</span> {rankText(r.st, r.total)}
+                </span>
+                <span className={rankTone(r.bn, r.total)}>
+                  <span className="text-zinc-500">Bench</span> {rankText(r.bn, r.total)}
+                </span>
+              </div>
+            </div>
           );
-        })}
-        {/* axis labels */}
-        {rows.map((r, i) => {
-          const [x, y] = pt(1, i, R * 1.36);
-          const c = Math.cos(angle(i));
-          const anchor = c > 0.3 ? "start" : c < -0.3 ? "end" : "middle";
-          return (
-            <text key={i} x={x} y={y + 3.5} textAnchor={anchor} fill="#a1a1aa" fontSize="11" fontWeight="600">
-              {r.pos}
-            </text>
-          );
-        })}
-      </svg>
+        })()}
+      </div>
 
       <div className="flex items-center justify-center gap-5 text-[10px] text-zinc-500">
         <span className="flex items-center gap-1.5">
